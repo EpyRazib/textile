@@ -71,20 +71,130 @@
             const { useState, useRef } = React;
             const { jsPDF } = window.jspdf;
 
-            const sampleData = [
+            const sampleDatapre = [
                 { id: 1, name: "John Doe", age: 30, department: "Sales", hireDate: "2023-01-15", salary: 50000 },
                 { id: 2, name: "Jane Smith", age: 25, department: "Marketing", hireDate: "2022-06-20", salary: 45000 },
                 { id: 3, name: "Bob Johnson", age: 40, department: "IT", hireDate: "2021-03-10", salary: 60000 },
                 { id: 4, name: "Alice Brown", age: 35, department: "HR", hireDate: "2020-09-05", salary: 55000 },
             ];
 
-            const fieldConfig = {
+            const sampleData = [
+    {
+        id: 1,
+        triggerPoint: "EWO Based Booking",
+        yrNo: "YR2025-001",
+        yrApproveDate: "2025-06-01",
+        projectionNo: "PROJ2025-045",
+        projectionApproveDate: "2025-05-28",
+        requirementBy: "2025-07-15",
+        buyerName: "C&A",
+        revisionNo: 1,
+        revisionDate: "2025-06-10",
+        revisionBy: "Md. Razib Hossain",
+        notes: "Urgent requirement for July shipment",
+        requiredDate: "2025-07-10",
+        requisitionDate: "2025-05-25",
+        conceptBookingNo: "CB2025-0032",
+        company: "Epyllion Fabrics Ltd.",
+        yarnCategory: "30/1 Ne 100% Cotton CF",
+        refSpinner: "XYZ Spinning Mills",
+        reqQtyKg: 1500,
+        reqConePcs: 3000,
+        refLotNo: "LOT23456",
+        acknowledgedDate: "2025-06-02",
+        acknowledgedBy: "Mr. Tariq",
+        status: "Approved"
+    },
+    {
+        id: 2,
+        triggerPoint: "M&M Projection Booking",
+        yrNo: "YR2025-002",
+        yrApproveDate: "2025-06-03",
+        projectionNo: "PROJ2025-046",
+        projectionApproveDate: "2025-05-30",
+        requirementBy: "2025-08-01",
+        buyerName: "Stanley Stella",
+        revisionNo: 0,
+        revisionDate: "",
+        revisionBy: "",
+        notes: "For new season start",
+        requiredDate: "2025-07-20",
+        requisitionDate: "2025-05-27",
+        conceptBookingNo: "CB2025-0033",
+        company: "Epyllion Knitex Ltd.",
+        yarnCategory: "40F 20D 100% Polyester",
+        refSpinner: "ABC Textiles Ltd.",
+        reqQtyKg: 2000,
+        reqConePcs: 4000,
+        refLotNo: "LOT98765",
+        acknowledgedDate: "2025-06-05",
+        acknowledgedBy: "Mr. Litan",
+        status: "Pending"
+    },
+    {
+        id: 3,
+        triggerPoint: "Textile Projection Booking",
+        yrNo: "YR2025-003",
+        yrApproveDate: "2025-06-05",
+        projectionNo: "PROJ2025-047",
+        projectionApproveDate: "2025-06-01",
+        requirementBy: "2025-08-10",
+        buyerName: "M&S",
+        revisionNo: 2,
+        revisionDate: "2025-06-12",
+        revisionBy: "Md. Razib Hossain",
+        notes: "Revised due to shipment delay",
+        requiredDate: "2025-07-30",
+        requisitionDate: "2025-06-01",
+        conceptBookingNo: "CB2025-0034",
+        company: "Epyllion Style Ltd.",
+        yarnCategory: "50D 100% Viscose",
+        refSpinner: "Delta Yarn Mills",
+        reqQtyKg: 1800,
+        reqConePcs: 3600,
+        refLotNo: "LOT11223",
+        acknowledgedDate: "2025-06-07",
+        acknowledgedBy: "Mr. Noman",
+        status: "Revised"
+    }
+];
+
+
+            const fieldConfigpre = {
                 name: { label: "Name", type: "text", options: [...new Set(sampleData.map(item => item.name))] },
                 age: { label: "Age", type: "number" },
                 department: { label: "Department", type: "text", options: [...new Set(sampleData.map(item => item.department))] },
                 hireDate: { label: "Hire Date", type: "date" },
                 salary: { label: "Salary", type: "number" },
             };
+
+            const fieldConfig = {
+                
+                triggerPoint: { label: "Trigger Point", type: "text", options: [...new Set(sampleData.map(item => item.triggerPoint))] },
+                yrNo: { label: "YR No", type: "text" },
+                yrApproveDate: { label: "YR Approve Date", type: "date" },
+                projectionNo: { label: "Projection No", type: "text" },
+                projectionApproveDate: { label: "Projection Approve Date", type: "date" },
+                requirementBy: { label: "Requirement By", type: "date" },
+                buyerName: { label: "Buyer Name", type: "text", options: [...new Set(sampleData.map(item => item.buyerName))] },
+                revisionNo: { label: "Revision No", type: "number" },
+                revisionDate: { label: "Revision Date", type: "date" },
+                revisionBy: { label: "Revision By", type: "text", options: [...new Set(sampleData.map(item => item.revisionBy).filter(Boolean))] },
+                notes: { label: "Notes", type: "text" },
+                requiredDate: { label: "Required Date", type: "date" },
+                requisitionDate: { label: "Requisition Date", type: "date" },
+                conceptBookingNo: { label: "Concept/Booking No", type: "text" },
+                company: { label: "Company", type: "text", options: [...new Set(sampleData.map(item => item.company))] },
+                yarnCategory: { label: "Yarn Category", type: "text", options: [...new Set(sampleData.map(item => item.yarnCategory))] },
+                refSpinner: { label: "Ref. Spinner", type: "text", options: [...new Set(sampleData.map(item => item.refSpinner))] },
+                reqQtyKg: { label: "Req Qty (Kg)", type: "number" },
+                reqConePcs: { label: "Req Cone (Pcs)", type: "number" },
+                refLotNo: { label: "Ref. Lot No.", type: "text" },
+                acknowledgedDate: { label: "Acknowledged Date", type: "date" },
+                acknowledgedBy: { label: "Acknowledged By", type: "text", options: [...new Set(sampleData.map(item => item.acknowledgedBy))] },
+                status: { label: "Status", type: "text", options: [...new Set(sampleData.map(item => item.status))] }
+            };
+
 
             const App = () => {
                 const [criteriaFields, setCriteriaFields] = useState([]);

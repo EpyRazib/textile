@@ -1,0 +1,747 @@
+<script type="text/javascript">
+    var gk_isXlsx = false;
+    var gk_xlsxFileLookup = {};
+    var gk_fileData = {};
+    function filledCell(cell) {
+        return cell !== '' && cell != null;
+    }
+    function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                    row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                    headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+    }
+</script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Report Interface</title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet" onerror="console.error('Failed to load Tailwind CSS')">
+    <!-- CDNs with error handling and fallbacks -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js" onerror="console.error('Failed to load React')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" onerror="console.error('Failed to load ReactDOM')"></script>
+    <!-- Babel with fallback -->
+    <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js" onerror="loadBabelFallback()"></script>
+    <script>
+        function loadBabelFallback() {
+            console.error('Failed to load primary Babel CDN');
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/babel-standalone@7.22.5/babel.min.js';
+            script.onerror = () => console.error('Failed to load fallback Babel CDN');
+            document.head.appendChild(script);
+        }
+    </script>
+    <!-- react-draggable with fallback -->
+    <script>
+        function loadDraggableFallback() {
+            console.error('Failed to load primary react-draggable CDN');
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/react-draggable@4.4.6/dist/react-draggable.min.js';
+            script.onerror = () => console.error('Failed to load fallback react-draggable CDN');
+            document.head.appendChild(script);
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/react-draggable@4.4.6/dist/react-draggable.min.js" onerror="loadDraggableFallback()"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="console.error('Failed to load XLSX')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" onerror="console.error('Failed to load jsPDF')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js" onerror="console.error('Failed to load jsPDF-autotable')"></script>
+</head>
+<body>
+    <div id="root" class="p-4"></div>
+    <script type="text/babel">
+        try {
+            const { useState, useRef } = React;
+            const { jsPDF } = window.jspdf;
+
+            const sampleDatapre = [
+                { id: 1, name: "John Doe", age: 30, department: "Sales", hireDate: "2023-01-15", salary: 50000 },
+                { id: 2, name: "Jane Smith", age: 25, department: "Marketing", hireDate: "2022-06-20", salary: 45000 },
+                { id: 3, name: "Bob Johnson", age: 40, department: "IT", hireDate: "2021-03-10", salary: 60000 },
+                { id: 4, name: "Alice Brown", age: 35, department: "HR", hireDate: "2020-09-05", salary: 55000 },
+            ];
+
+            const sampleData = [
+                {
+                    id: 1,
+                    "Allocated Qty.": 1000,
+                    "Allocation Date": "2025-06-15",
+                    "Allocation No.": "ALLOC2025-001",
+                    "Booking Date & Time": "2025-06-10T10:30:00",
+                    "Booking Qty.": 1500,
+                    "Buyer Department": "Knitwear",
+                    "Buyer Name": "C&A",
+                    "Buyer Season Name": "Autumn 2025",
+                    "Fabric Construction": "Single Jersey",
+                    "Count": "30/1",
+                    "EWO No.": "EWO2025-123",
+                    "Fabric Booking Date (FR)": "2025-05-15",
+                    "Fabric Booking No.": "FB2025-1001",
+                    "Yarn Description": "30/1 Ne Cotton Combed CF",
+                    "Yarn Projection No.": "YP2025-010",
+                    "Yarn Projection Date": "2025-04-20",
+                    "Yarn Required Date (FR)": "2025-07-15",
+                    "Yarn Requirement Date": "2025-07-10",
+                    "Yarn Sourcing Mode": "Local",
+                    "Yarn Composition": "100% Cotton",
+                    
+                    "Fabric Composition": "100% Cotton",
+                    "Fabric Delivery End Date": "2025-08-20",
+                    "Fabric Delivery Start Date": "2025-08-01",
+                    "Fabric Color": "Navy Blue",
+                    "General Notes": "Urgent",
+                    "Go for YD": "Yes",
+                    "Grey Wasteage (%)": 5,
+                    "GSM": 160,
+                    "Knitting End Date": "2025-07-25",
+                    "Knitting Start Date": "2025-07-10",
+                    "Lot Physical": "LOT-PHY-001",
+                    "Manufacturing Process": "Knitting",
+                    "Merchandiser": "Mr. Imran",
+                    "Merchandising Team": "Team A",
+                    "Net Yarn Req Qty.": 950,
+                    "Notes": "Confirm urgently",
+                    "Previous Allocation Date": "2025-05-30",
+                    "Textile Projection No.": "TP2025-001",
+                    "Ref. Spinner": "XYZ Spinning Mills",
+                    "Revision Reason": "Color mismatch",
+                    "Spinner Physical": "SPIN-PHY-001",
+                    "Supplier Name": "ABC Yarns Ltd.",
+                    "TNA Calender": "TNA-2025-July",
+                    "Unit Name": "Unit-1",
+                    "Yarn Booking Date (FR)": "2025-05-28",
+                    "Yarn Booking Status": "Confirmed",
+                    "Yarn Certification": "GOTS",
+                    "Yarn PI": "PI2025-789",
+
+                    "Allocation Remarks": "Partially Allocated",
+                    "Allocation Status": "Running",
+                    "Booking By": "Mr. Tariq",
+                    "Booking Status: Running/Close": "Running"
+                },
+                {
+                    id: 2,
+                    "Allocated Qty.": 2000,
+                    "Allocation Date": "2025-06-18",
+                    "Allocation No.": "ALLOC2025-002",
+                    "Booking Date & Time": "2025-06-12T11:00:00",
+                    "Booking Qty.": 2200,
+                    "Buyer Department": "Woven",
+                    "Buyer Name": "Stanley Stella",
+                    "Buyer Season Name": "Winter 2025",
+                    "Fabric Construction": "Interlock",
+                    "Count": "40/1",
+                    "EWO No.": "EWO2025-124",
+                    "Fabric Booking Date (FR)": "2025-05-18",
+                    "Fabric Booking No.": "FB2025-1002",
+                    "Yarn Description": "40/1 Ne Viscose",
+                    "Yarn Projection No.": "YP2025-011",
+                    "Yarn Projection Date": "2025-04-25",
+                    "Yarn Required Date (FR)": "2025-08-10",
+                    "Yarn Requirement Date": "2025-08-05",
+                    "Yarn Sourcing Mode": "Import",
+                    "Yarn Composition": "100% Viscose",
+                    
+                    "Fabric Composition": "100% Viscose",
+                    "Fabric Delivery End Date": "2025-09-10",
+                    "Fabric Delivery Start Date": "2025-08-20",
+                    "Fabric Color": "Black",
+                    "General Notes": "Check lead time",
+                    "Go for YD": "No",
+                    "Grey Wasteage (%)": 4,
+                    "GSM": 140,
+                    "Knitting End Date": "2025-08-01",
+                    "Knitting Start Date": "2025-07-20",
+                    "Lot Physical": "LOT-PHY-002",
+                    "Manufacturing Process": "Knitting",
+                    "Merchandiser": "Ms. Farzana",
+                    "Merchandising Team": "Team B",
+                    "Net Yarn Req Qty.": 2100,
+                    "Notes": "Check booking carefully",
+                    "Previous Allocation Date": "2025-06-01",
+                    "Textile Projection No.": "TP2025-002",
+                    "Ref. Spinner": "ABC Textiles Ltd.",
+                    "Revision Reason": "Qty. update",
+                    "Spinner Physical": "SPIN-PHY-002",
+                    "Supplier Name": "Delta Yarn Traders",
+                    "TNA Calender": "TNA-2025-Aug",
+                    "Unit Name": "Unit-2",
+                    "Yarn Booking Date (FR)": "2025-06-01",
+                    "Yarn Booking Status": "Pending",
+                    "Yarn Certification": "OEKO-TEX",
+                    "Yarn PI": "PI2025-790",
+
+                    "Allocation Remarks": "Full Allocation",
+                    "Allocation Status": "Allocated",
+                    "Booking By": "Mr. Litan",
+                    "Booking Status: Running/Close": "Close"
+                },
+                {
+                    id: 3,
+                    "Allocated Qty.": 1750,
+                    "Allocation Date": "2025-06-20",
+                    "Allocation No.": "ALLOC2025-003",
+                    "Booking Date & Time": "2025-06-15T09:45:00",
+                    "Booking Qty.": 1800,
+                    "Buyer Department": "Denim",
+                    "Buyer Name": "M&S",
+                    "Buyer Season Name": "Spring 2026",
+                    "Fabric Construction": "Rib",
+                    "Count": "28/1",
+                    "EWO No.": "EWO2025-125",
+                    "Fabric Booking Date (FR)": "2025-05-20",
+                    "Fabric Booking No.": "FB2025-1003",
+                    "Yarn Description": "28/1 Ne Slub Cotton",
+                    "Yarn Projection No.": "YP2025-012",
+                    "Yarn Projection Date": "2025-04-28",
+                    "Yarn Required Date (FR)": "2025-08-20",
+                    "Yarn Requirement Date": "2025-08-15",
+                    "Yarn Sourcing Mode": "Stock",
+                    "Yarn Composition": "Cotton/Polyester",
+
+                    "Fabric Composition": "Cotton/Poly Blend",
+                    "Fabric Delivery End Date": "2025-09-15",
+                    "Fabric Delivery Start Date": "2025-08-25",
+                    "Fabric Color": "Melange Grey",
+                    "General Notes": "Special quality required",
+                    "Go for YD": "No",
+                    "Grey Wasteage (%)": 6,
+                    "GSM": 180,
+                    "Knitting End Date": "2025-08-10",
+                    "Knitting Start Date": "2025-07-28",
+                    "Lot Physical": "LOT-PHY-003",
+                    "Manufacturing Process": "Circular Knitting",
+                    "Merchandiser": "Mr. Sohail",
+                    "Merchandising Team": "Team C",
+                    "Net Yarn Req Qty.": 1720,
+                    "Notes": "Need GRS certification",
+                    "Previous Allocation Date": "2025-06-05",
+                    "Textile Projection No.": "TP2025-003",
+                    "Ref. Spinner": "Delta Yarn Mills",
+                    "Revision Reason": "Urgency",
+                    "Spinner Physical": "SPIN-PHY-003",
+                    "Supplier Name": "Rana Spinning",
+                    "TNA Calender": "TNA-2025-Sep",
+                    "Unit Name": "Unit-3",
+                    "Yarn Booking Date (FR)": "2025-06-05",
+                    "Yarn Booking Status": "Booked",
+                    "Yarn Certification": "GRS",
+                    "Yarn PI": "PI2025-791",
+
+                    "Allocation Remarks": "Urgent need",
+                    "Allocation Status": "Running",
+                    "Booking By": "Mr. Noman",
+                    "Booking Status: Running/Close": "Running"
+                },
+                {
+                    id: 4,
+                    "Allocated Qty.": 1200,
+                    "Allocation Date": "2025-06-22",
+                    "Allocation No.": "ALLOC2025-004",
+                    "Booking Date & Time": "2025-06-18T14:20:00",
+                    "Booking Qty.": 1300,
+                    "Buyer Department": "Activewear",
+                    "Buyer Name": "H&M",
+                    "Buyer Season Name": "Summer 2025",
+                    "Fabric Construction": "Pique",
+                    "Count": "32/1",
+                    "EWO No.": "EWO2025-126",
+                    "Fabric Booking Date (FR)": "2025-05-25",
+                    "Fabric Booking No.": "FB2025-1004",
+                    "Yarn Description": "32/1 Poly-Cotton",
+                    "Yarn Projection No.": "YP2025-013",
+                    "Yarn Projection Date": "2025-05-01",
+                    "Yarn Required Date (FR)": "2025-08-25",
+                    "Yarn Requirement Date": "2025-08-20",
+                    "Yarn Sourcing Mode": "New Purchase",
+                    "Yarn Composition": "65% Polyester, 35% Cotton",
+
+                    "Fabric Composition": "Poly-Cotton Blend",
+                    "Fabric Delivery End Date": "2025-09-20",
+                    "Fabric Delivery Start Date": "2025-08-30",
+                    "Fabric Color": "Olive Green",
+                    "General Notes": "Lightweight fabric",
+                    "Go for YD": "Yes",
+                    "Grey Wasteage (%)": 3,
+                    "GSM": 150,
+                    "Knitting End Date": "2025-08-15",
+                    "Knitting Start Date": "2025-08-01",
+                    "Lot Physical": "LOT-PHY-004",
+                    "Manufacturing Process": "Flat Knitting",
+                    "Merchandiser": "Ms. Nusrat",
+                    "Merchandising Team": "Team D",
+                    "Net Yarn Req Qty.": 1250,
+                    "Notes": "Use anti-pilling yarn",
+                    "Previous Allocation Date": "2025-06-10",
+                    "Textile Projection No.": "TP2025-004",
+                    "Ref. Spinner": "Nice Spinning Ltd.",
+                    "Revision Reason": "New forecast",
+                    "Spinner Physical": "SPIN-PHY-004",
+                    "Supplier Name": "Nice Spinning Ltd.",
+                    "TNA Calender": "TNA-2025-Oct",
+                    "Unit Name": "Unit-4",
+                    "Yarn Booking Date (FR)": "2025-06-08",
+                    "Yarn Booking Status": "In Progress",
+                    "Yarn Certification": "BCI",
+                    "Yarn PI": "PI2025-792",
+
+                    "Allocation Remarks": "Quality Check Required",
+                    "Allocation Status": "Pending",
+                    "Booking By": "Mr. Faisal",
+                    "Booking Status: Running/Close": "Running"
+                }
+            ];
+
+            const fieldConfigpre = {
+                name: { label: "Name", type: "text", options: [...new Set(sampleData.map(item => item.name))] },
+                age: { label: "Age", type: "number" },
+                department: { label: "Department", type: "text", options: [...new Set(sampleData.map(item => item.department))] },
+                hireDate: { label: "Hire Date", type: "date" },
+                salary: { label: "Salary", type: "number" },
+            };
+
+            const fieldConfig = {
+                // Core Fields
+                "Allocated Qty.": { label: "Allocated Qty.", type: "number" },
+                "Allocation Date": { label: "Allocation Date", type: "date" },
+                "Allocation No.": { label: "Allocation No.", type: "text" },
+                "Booking Date & Time": { label: "Booking Date & Time", type: "date" },
+                "Booking Qty.": { label: "Booking Qty.", type: "number" },
+                "Buyer Department": { label: "Buyer Department", type: "text", options: [...new Set(sampleData.map(item => item["Buyer Department"]))] },
+                "Buyer Name": { label: "Buyer Name", type: "text", options: [...new Set(sampleData.map(item => item["Buyer Name"]))] },
+                "Buyer Season Name": { label: "Buyer Season Name", type: "text" },
+                "Fabric Construction": { label: "Fabric Construction", type: "text" },
+                "Count": { label: "Count", type: "text" },
+                "EWO No.": { label: "EWO No.", type: "text" },
+                "Fabric Booking Date (FR)": { label: "Fabric Booking Date (FR)", type: "date" },
+                "Fabric Booking No.": { label: "Fabric Booking No.", type: "text" },
+                "Yarn Description": { label: "Yarn Description", type: "text" },
+                "Yarn Projection No.": { label: "Yarn Projection No.", type: "text" },
+                "Yarn Projection Date": { label: "Yarn Projection Date", type: "date" },
+                "Yarn Required Date (FR)": { label: "Yarn Required Date (FR)", type: "date" },
+                "Yarn Requirement Date": { label: "Yarn Requirement Date", type: "date" },
+                "Yarn Sourcing Mode": { label: "Yarn Sourcing Mode", type: "text", options: [...new Set(sampleData.map(item => item["Yarn Sourcing Mode"]))] },
+                "Yarn Composition": { label: "Yarn Composition", type: "text" },
+
+                // Semi Core Fields
+                "Fabric Composition": { label: "Fabric Composition", type: "text" },
+                "Fabric Delivery End Date": { label: "Fabric Delivery End Date", type: "date" },
+                "Fabric Delivery Start Date": { label: "Fabric Delivery Start Date", type: "date" },
+                "Fabric Color": { label: "Fabric Color", type: "text" },
+                "General Notes": { label: "General Notes", type: "text" },
+                "Go for YD": { label: "Go for YD", type: "text" },
+                "Grey Wasteage (%)": { label: "Grey Wasteage (%)", type: "number" },
+                "GSM": { label: "GSM", type: "number" },
+                "Knitting End Date": { label: "Knitting End Date", type: "date" },
+                "Knitting Start Date": { label: "Knitting Start Date", type: "date" },
+                "Lot Physical": { label: "Lot Physical", type: "text" },
+                "Manufacturing Process": { label: "Manufacturing Process", type: "text" },
+                "Merchandiser": { label: "Merchandiser", type: "text", options: [...new Set(sampleData.map(item => item["Merchandiser"]))] },
+                "Merchandising Team": { label: "Merchandising Team", type: "text" },
+                "Net Yarn Req Qty.": { label: "Net Yarn Req Qty.", type: "number" },
+                "Notes": { label: "Notes", type: "text" },
+                "Previous Allocation Date": { label: "Previous Allocation Date", type: "date" },
+                "Textile Projection No.": { label: "Textile Projection No.", type: "text" },
+                "Ref. Spinner": { label: "Ref. Spinner", type: "text", options: [...new Set(sampleData.map(item => item["Ref. Spinner"]))] },
+                "Revision Reason": { label: "Revision Reason", type: "text" },
+                "Spinner Physical": { label: "Spinner Physical", type: "text" },
+                "Supplier Name": { label: "Supplier Name", type: "text", options: [...new Set(sampleData.map(item => item["Supplier Name"]))] },
+                "TNA Calender": { label: "TNA Calender", type: "text" },
+                "Unit Name": { label: "Unit Name", type: "text", options: [...new Set(sampleData.map(item => item["Unit Name"]))] },
+                "Yarn Booking Date (FR)": { label: "Yarn Booking Date (FR)", type: "date" },
+                "Yarn Booking Status": { label: "Yarn Booking Status", type: "text", options: [...new Set(sampleData.map(item => item["Yarn Booking Status"]))] },
+                "Yarn Certification": { label: "Yarn Certification", type: "text" },
+                "Yarn PI": { label: "Yarn PI", type: "text" },
+
+                // Auxiliary Fields
+                "Allocation Remarks": { label: "Allocation Remarks", type: "text" },
+                "Allocation Status": { label: "Allocation Status", type: "text", options: [...new Set(sampleData.map(item => item["Allocation Status"]))] },
+                "Booking By": { label: "Booking By", type: "text", options: [...new Set(sampleData.map(item => item["Booking By"]))] },
+                "Booking Status: Running/Close": { label: "Booking Status: Running/Close", type: "text", options: [...new Set(sampleData.map(item => item["Booking Status: Running/Close"]))] }
+            };
+
+            const fieldCategories = {
+                
+                    "Core Field": ["Allocation Date", "Booking Date & Time", "Fabric Booking Date (FR)", "Yarn Projection Date", 
+                    "Yarn Required Date (FR)", "Yarn Requirement Date", "Fabric Delivery End Date", "Fabric Delivery Start Date", 
+                    "Knitting End Date", "Knitting Start Date", "Previous Allocation Date", "Yarn Booking Date (FR)",
+                    "Allocation No.", "EWO No.", "Fabric Booking No.", "Yarn Projection No.", "Yarn PI", "Buyer Department", "Buyer Name", 
+                    "Buyer Season Name", "Fabric Construction", "Count", "Yarn Description", "Yarn Sourcing Mode", "Yarn Composition",
+                    "Allocated Qty.", "Booking Qty.", "Net Yarn Req Qty."],
+                    "Semi Core Field": ["Fabric Composition", "Fabric Color", "General Notes", "Go for YD", "Lot Physical", "Manufacturing Process", 
+                    "Merchandiser", "Merchandising Team", "Notes", "Ref. Spinner", "Revision Reason", "Spinner Physical", "Supplier Name", "TNA Calender", 
+                    "Unit Name", "Yarn Booking Status", "Yarn Certification", "Textile Projection No.","Grey Wasteage (%)", "GSM"],
+                    "Auxiliary Field": ["Allocation Remarks", "Allocation Status", "Booking By", "Booking Status: Running/Close"]
+                };
+
+            const App = () => {
+                const [criteriaFields, setCriteriaFields] = useState([]);
+                const [reportFields, setReportFields] = useState([]);
+                const [filters, setFilters] = useState({});
+                const [reportData, setReportData] = useState([]);
+                const [searchTerm, setSearchTerm] = useState("");
+                const [selectedFields, setSelectedFields] = useState({});
+                const criteriaDropRef = useRef(null);
+                const reportDropRef = useRef(null);
+
+                const handleDragStart = (e, field) => {
+                    console.log("Drag start for field:", field);
+                    e.dataTransfer.setData("text/plain", field);
+                };
+
+                const handleCriteriaDrop = (e) => {
+                    e.preventDefault();
+                    console.log("Drop event on Criteria Fields");
+                    const field = e.dataTransfer.getData("text/plain");
+                    if (field && !criteriaFields.includes(field)) {
+                        console.log("Field added to Criteria Fields:", field);
+                        setCriteriaFields(prev => [...prev, field]);
+                        // Do not remove from Available Fields
+                    }
+                };
+
+                const handleReportDrop = (e) => {
+                    e.preventDefault();
+                    console.log("Drop event on Report Fields");
+                    const field = e.dataTransfer.getData("text/plain");
+                    if (field && !reportFields.includes(field)) {
+                        console.log("Field added to Report Fields:", field);
+                        setReportFields(prev => [...prev, field]);
+                        // Do not remove from Available Fields
+                    }
+                };
+
+                const allowDrop = (e) => {
+                    e.preventDefault();
+                    console.log("Drag over allowed");
+                };
+
+                const handleCheckboxChange = (field) => {
+                    setSelectedFields(prev => {
+                        const isSelected = !prev[field];
+                        if (isSelected && !reportFields.includes(field)) {
+                            setReportFields(prev => [...prev, field]);
+                        } else if (!isSelected && reportFields.includes(field)) {
+                            setReportFields(prev => prev.filter(f => f !== field));
+                        }
+                        return { ...prev, [field]: isSelected };
+                    });
+                };
+
+                const removeCriteriaField = (field) => {
+                    setCriteriaFields(criteriaFields.filter(f => f !== field));
+                    setFilters(prev => {
+                        const newFilters = { ...prev };
+                        delete newFilters[field];
+                        return newFilters;
+                    });
+                };
+
+                const removeReportField = (field) => {
+                    setReportFields(reportFields.filter(f => f !== field));
+                    setSelectedFields(prev => {
+                        const newSelected = { ...prev };
+                        delete newSelected[field];
+                        return newSelected;
+                    });
+                };
+
+                const handleFilterChange = (field, value) => {
+                    setFilters(prev => ({ ...prev, [field]: value }));
+                };
+
+                const generateReport = () => {
+                    let filteredData = [...sampleData];
+                    
+                    Object.keys(filters).forEach(field => {
+                        const filter = filters[field];
+                        const fieldType = fieldConfig[field].type;
+
+                        filteredData = filteredData.filter(item => {
+                            if (fieldType === 'text') {
+                                return !filter || filter === '' || item[field] === filter;
+                            } else if (fieldType === 'number') {
+                                const [min, max] = filter || [0, Infinity];
+                                return item[field] >= min && item[field] <= max;
+                            } else if (fieldType === 'date') {
+                                const [start, end] = filter || ['', ''];
+                                const itemDate = new Date(item[field]);
+                                const startDate = start ? new Date(start) : new Date(-8640000000000000);
+                                const endDate = end ? new Date(end) : new Date(8640000000000000);
+                                return itemDate >= startDate && itemDate <= endDate;
+                            }
+                            return true;
+                        });
+                    });
+
+                    const selectedFieldsList = reportFields.length > 0 ? reportFields : Object.keys(fieldConfig);
+                    const mappedData = filteredData.map(item => {
+                        const row = {};
+                        selectedFieldsList.forEach(field => {
+                            row[field] = item[field];
+                        });
+                        return row;
+                    });
+
+                    setReportData(mappedData);
+                };
+
+                const exportToExcel = () => {
+                    const ws = XLSX.utils.json_to_sheet(reportData);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Report");
+                    XLSX.writeFile(wb, "report.xlsx");
+                };
+
+                const exportToPDF = () => {
+                    const doc = new jsPDF();
+                    doc.setFontSize(12);
+                    doc.text("Report", 20, 20);
+
+                    const headers = reportFields.length > 0 ? reportFields : Object.keys(fieldConfig);
+                    const tableData = reportData.map(row => headers.map(field => row[field] || ''));
+
+                    doc.autoTable({
+                        head: [headers.map(field => fieldConfig[field].label)],
+                        body: tableData,
+                        startY: 30,
+                    });
+
+                    doc.save("report.pdf");
+                };
+
+                const renderFilterInput = (field) => {
+                    const config = fieldConfig[field];
+                    if (config.type === 'text') {
+                        return (
+                            <select
+                                className="border rounded p-1 w-48"
+                                onChange={(e) => handleFilterChange(field, e.target.value)}
+                            >
+                                <option value="">Select {config.label}</option>
+                                {config.options.map(option => (
+                                    <option key={option} value={option}>{option}</option>
+                                ))}
+                            </select>
+                        );
+                    } else if (config.type === 'number') {
+                        return (
+                            <div className="flex space-x-2">
+                                <input
+                                    type="number"
+                                    placeholder="Min"
+                                    className="border rounded p-1 w-20"
+                                    onChange={(e) => handleFilterChange(field, [
+                                        e.target.value ? Number(e.target.value) : 0,
+                                        filters[field]?.[1] || Infinity
+                                    ])}
+                                />
+                                <input
+                                    type="number"
+                                    placeholder="Max"
+                                    className="border rounded p-1 w-20"
+                                    onChange={(e) => handleFilterChange(field, [
+                                        filters[field]?.[0] || 0,
+                                        e.target.value ? Number(e.target.value) : Infinity
+                                    ])}
+                                />
+                            </div>
+                        );
+                    } else if (config.type === 'date') {
+                        return (
+                            <div className="flex space-x-2">
+                                <input
+                                    type="date"
+                                    className="border rounded p-1"
+                                    onChange={(e) => handleFilterChange(field, [
+                                        e.target.value,
+                                        filters[field]?.[1] || ''
+                                    ])}
+                                />
+                                <input
+                                    type="date"
+                                    className="border rounded p-1"
+                                    onChange={(e) => handleFilterChange(field, [
+                                        filters[field]?.[0] || '',
+                                        e.target.value
+                                    ])}
+                                />
+                            </div>
+                        );
+                    }
+                    return null;
+                };
+
+                return (
+                    <div className="max-w-6xl mx-auto flex">
+                        <div className="w-1/4 bg-gray-100 p-4 rounded-lg mr-4">
+                            <h2 className="text-lg font-semibold mb-2">Available Fields</h2>
+                            <input
+                                type="text"
+                                placeholder="Search fields..."
+                                className="border rounded p-2 mb-4 w-full"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                            {Object.entries(fieldCategories).map(([category, fields]) => (
+                                <div key={category} className="mb-4">
+                                    <details className="bg-white p-2 rounded shadow">
+                                        <summary className="font-semibold cursor-pointer">{category} ({fields.length})</summary>
+                                        <div className="mt-2 flex flex-col gap-2">
+                                            {fields
+                                                .filter(field => field.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                .map(field => (
+                                                    <div
+                                                        key={field}
+                                                        draggable="true"
+                                                        onDragStart={(e) => handleDragStart(e, field)}
+                                                        className={`flex items-center gap-2 ${selectedFields[field] ? 'bg-green-500' : 'bg-blue-500'} text-white px-3 py-1 rounded cursor-move`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedFields[field] || false}
+                                                            onChange={() => handleCheckboxChange(field)}
+                                                        />
+                                                        <span>{field}</span>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </details>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="w-3/4">
+                            <h1 className="text-2xl font-bold mb-4">Dynamic Report Generator</h1>
+                            <div
+                                ref={criteriaDropRef}
+                                onDrop={handleCriteriaDrop}
+                                onDragOver={allowDrop}
+                                className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300"
+                            >
+                                <h2 className="text-lg font-semibold mb-2">Criteria Fields</h2>
+                                {criteriaFields.length === 0 && (
+                                    <p className="text-gray-500">Drag and drop fields here</p>
+                                )}
+                                {criteriaFields.map(field => (
+                                    <div key={field} className="flex items-center space-x-2 mb-2">
+                                        <span className="w-24">{fieldConfig[field].label}:</span>
+                                        {renderFilterInput(field)}
+                                        <button
+                                            className="text-red-500 text-sm"
+                                            onClick={() => removeCriteriaField(field)}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            <div
+                                ref={reportDropRef}
+                                onDrop={handleReportDrop}
+                                onDragOver={allowDrop}
+                                className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300"
+                            >
+                                <h2 className="text-lg font-semibold mb-2">Report Fields</h2>
+                                {reportFields.length === 0 && (
+                                    <p className="text-gray-500">Drag and drop fields here</p>
+                                )}
+                                <div className="flex flex-wrap gap-2">
+                                    {reportFields.map(field => (
+                                        <div key={field} className="flex items-center space-x-2">
+                                            <span>{fieldConfig[field].label}</span>
+                                            <button
+                                                className="text-red-500 text-sm"
+                                                onClick={() => removeReportField(field)}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <button
+                                className="bg-purple-500 text-white px-6 py-2 rounded mb-6"
+                                onClick={generateReport}
+                            >
+                                Generate Report
+                            </button>
+                            {reportData.length > 0 && (
+                                <div>
+                                    <div className="mb-4 flex justify-start">
+                                        <button
+                                            className="bg-blue-500 text-white px-4 py-2 rounded mr-2"
+                                            onClick={exportToExcel}
+                                        >
+                                            Export to Excel
+                                        </button>
+                                        <button
+                                            className="bg-blue-500 text-white px-4 py-2 rounded"
+                                            onClick={exportToPDF}
+                                        >
+                                            Export to PDF
+                                        </button>
+                                    </div>
+                                    <table className="w-full border-collapse border border-gray-300">
+                                        <thead>
+                                            <tr className="bg-gray-200">
+                                                {(reportFields.length > 0 ? reportFields : Object.keys(fieldConfig)).map(field => (
+                                                    <th key={field} className="border border-gray-300 p-2">
+                                                        {fieldConfig[field].label}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {reportData.map((row, index) => (
+                                                <tr key={index}>
+                                                    {(reportFields.length > 0 ? reportFields : Object.keys(fieldConfig)).map(field => (
+                                                        <td key={field} className="border border-gray-300 p-2">
+                                                            {row[field]}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            ReactDOM.render(<App />, document.getElementById('root'));
+        } catch (e) {
+            console.error('Error rendering application:', e);
+            document.getElementById('root').innerHTML = '<h1 class="text-red-500 text-center">Error loading application. Please check console for details.</h1>';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1478 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supplier Onboarding Form</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .header {
+            background-color: #007bff;
+            padding: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        h1 {
+            color: #fff;
+            font-size: 24px;
+            margin: 0;
+        }
+        h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+        h3 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        input[type="text"], input[type="email"], input[type="number"], input[type="url"], select, textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        input[readonly] {
+            background-color: #e9ecef;
+            cursor: not-allowed;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #0056b3;
+            outline: none;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 4px;
+            margin-right: 10px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .unit-entry {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab {
+            position: relative;
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+            transition: background-color 0.3s;
+        }
+        .tab.active {
+            background-color: #fff;
+            font-weight: bold;
+            border-bottom: 2px solid #007bff;
+        }
+        .tab:hover {
+            background-color: #e9ecef;
+        }
+        .remove-tab {
+            position: absolute;
+            top: 2px;
+            right: 4px;
+            background: none;
+            border: none;
+            color: #333;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+        }
+        .remove-tab:hover {
+            color: #dc3545;
+        }
+        .add-icon {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
+        .add-icon:hover {
+            background-color: #218838;
+        }
+        footer {
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 12px;
+            margin-top: 20px;
+            font-size: 12px;
+            border-radius: 5px;
+        }
+        .main-section {
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .main-section-header {
+            padding: 10px 20px;
+            background-color: #f8f9fa;
+            cursor: pointer;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+        .main-section-header:hover {
+            background-color: #e9ecef;
+        }
+        .main-section-header::before {
+            content: '+';
+            font-size: 18px;
+            font-weight: bold;
+            margin-right: 10px;
+            color: #007bff;
+        }
+        .main-section.open .main-section-header::before {
+            content: '−';
+        }
+        .main-content {
+            max-height: 0;
+            overflow: hidden;
+            padding: 0 20px;
+            background-color: #fff;
+            transition: max-height 0.3s ease-in-out, padding-bottom 0.3s ease-in-out;
+        }
+        .main-section.open .main-content {
+            max-height: 2000px;
+            padding-bottom: 20px;
+        }
+        .sub-section {
+            margin-bottom: 10px;
+        }
+        .sub-section-header {
+            padding: 8px 15px;
+            background-color: #e9ecef;
+            cursor: pointer;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .sub-section-header:hover {
+            background-color: #dfe3e7;
+        }
+        .sub-section-header::before {
+            content: '+';
+            font-size: 16px;
+            font-weight: bold;
+            margin-right: 10px;
+            color: #007bff;
+        }
+        .sub-section.open .sub-section-header::before {
+            content: '−';
+        }
+        .sub-section-content {
+            max-height: 0;
+            overflow: hidden;
+            padding: 0 15px;
+            background-color: #fff;
+            transition: max-height 0.3s ease-in-out, padding-bottom 0.3s ease-in-out;
+        }
+        .sub-section.open .sub-section-content {
+            max-height: 1500px;
+            padding-bottom: 15px;
+        }
+        .subsection {
+            padding: 10px;
+        }
+        .status {
+            margin-left: auto;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: normal;
+        }
+        .status.done {
+            background-color: #28a745;
+            color: white;
+        }
+        .status.in-progress {
+            background-color: #ffc107;
+            color: #333;
+        }
+        .status.not-started {
+            background-color: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Supplier Onboarding Form</h1>
+        </div>
+        <p>Please fill out the form below to provide your details.</p>
+
+        <!-- Initial Fields -->
+        <div id="initial-section" class="section">
+            <h2>Basic Info</h2>
+            <div class="form-group">
+                <label for="group-name">Group Name *</label>
+                <input type="text" id="group-name" required>
+            </div>
+            <div class="form-group">
+                <label for="export-business-unit">Export Business Unit *</label>
+                <input type="text" id="export-business-unit" required>
+                <button class="add-icon" id="add-unit" title="Add Unit">Save and Next</button>
+            </div>
+            <div id="unit-tabs" class="tabs"></div>
+            <div id="unit-content"></div>
+        </div>
+    </div>
+    <footer>© 2025 Supplier Onboarding</footer>
+
+    <script>
+        let units = [];
+        let currentUnitIndex = -1;
+        let unitCount = 0;
+
+        const groupNameInput = document.getElementById('group-name');
+        const exportBusinessUnitInput = document.getElementById('export-business-unit');
+        const addUnitButton = document.getElementById('add-unit');
+        const unitTabsDiv = document.getElementById('unit-tabs');
+        const unitContentDiv = document.getElementById('unit-content');
+
+        function updateSectionStatus(section, unitId) {
+            const requiredFields = section.querySelectorAll(
+                'input[required]:not([readonly]), textarea[required], select[required]'
+            );
+            let filledCount = 0;
+            requiredFields.forEach(field => {
+                if (field.value.trim()) filledCount++;
+            });
+            const statusSpan = section.querySelector('.status');
+            if (!statusSpan) return;
+            if (filledCount === requiredFields.length && filledCount > 0) {
+                statusSpan.textContent = 'Done';
+                statusSpan.className = 'status done';
+            } else if (filledCount > 0) {
+                statusSpan.textContent = 'In Progress';
+                statusSpan.className = 'status in-progress';
+            } else {
+                statusSpan.textContent = 'Not Started';
+                statusSpan.className = 'status not-started';
+            }
+        }
+
+        function updateMainSectionStatus(mainSection, unitId) {
+            const subSections = mainSection.querySelectorAll('.sub-section');
+            const statusSpan = mainSection.querySelector('.main-section-header .status');
+            if (!statusSpan) return;
+            let allDone = true;
+            let anyInProgress = false;
+            subSections.forEach(subSection => {
+                const subStatus = subSection.querySelector('.status').textContent;
+                if (subStatus !== 'Done') allDone = false;
+                if (subStatus === 'In Progress') anyInProgress = true;
+            });
+            if (allDone) {
+                statusSpan.textContent = 'Done';
+                statusSpan.className = 'status done';
+            } else if (anyInProgress || !allDone) {
+                statusSpan.textContent = 'In Progress';
+                statusSpan.className = 'status in-progress';
+            } else {
+                statusSpan.textContent = 'Not Started';
+                statusSpan.className = 'status not-started';
+            }
+        }
+
+        function addBusinessUnit() {
+            if (!groupNameInput || !exportBusinessUnitInput) {
+                console.warn('Group Name or Export Business Unit input not found.');
+                alert('ফর্মে একটি ত্রুটি আছে। দয়া করে পৃষ্ঠাটি রিফ্রেশ করুন।');
+                return;
+            }
+
+            const groupName = groupNameInput.value.trim();
+            const unitName = exportBusinessUnitInput.value.trim();
+
+            if (!groupName || !unitName) {
+                alert('সব প্রয়োজনীয় ক্ষেত্র পূরণ করুন।');
+                return;
+            }
+
+            units.push({
+                name: unitName,
+                data: {
+                    generalAdmin: {},
+                    manufacturingInfo: {},
+                    commercialFinance: {}
+                }
+            });
+            unitCount++;
+            exportBusinessUnitInput.value = '';
+
+            // Create tab
+            const tab = document.createElement('div');
+            tab.className = 'tab';
+            tab.id = `tab-${unitCount}`;
+            tab.innerHTML = `
+                ${unitName}
+                <button class="remove-tab" data-unit="${unitCount}" title="Remove Unit">x</button>
+            `;
+            tab.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('remove-tab')) {
+                    switchUnit(unitCount - 1);
+                }
+            });
+            unitTabsDiv.appendChild(tab);
+
+            // Add remove tab functionality
+            tab.querySelector('.remove-tab').addEventListener('click', () => {
+                if (confirm(`আপনি কি নিশ্চিতভাবে ${unitName} মুছতে চান?`)) {
+                    removeUnit(unitCount - 1);
+                }
+            });
+
+            // Create content
+            const content = document.createElement('div');
+            content.id = `content-${unitCount}`;
+            content.className = 'unit-content';
+            content.style.display = 'none';
+            content.innerHTML = `
+                <!-- General & Admin -->
+                <div class="main-section" id="general-admin-${unitCount}">
+                    <div class="main-section-header">General & Administrative <span class="status not-started">Not Started</span></div>
+                    <div class="main-content">
+                        <div class="sub-section" id="basic-info-${unitCount}">
+                            <div class="sub-section-header">Basic Info <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="group-name-${unitCount}">Group Name *</label>
+                                    <input type="text" id="group-name-${unitCount}" value="${groupName}" readonly required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="unit-name-${unitCount}">Export Business Unit Name *</label>
+                                    <input type="text" id="unit-name-${unitCount}" value="${unitName}" readonly required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="unit-address-${unitCount}">Export Business Unit Address *</label>
+                                    <input type="text" id="unit-address-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="corporate-address-${unitCount}">Corporate Office Address *</label>
+                                    <input type="text" id="corporate-address-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="websites-${unitCount}">Websites</label>
+                                    <input type="url" id="websites-${unitCount}">
+                                </div>
+                                <button class="next" data-unit="${unitCount}" data-section="basic-info">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="factory-info-${unitCount}">
+                            <div class="sub-section-header">Factory Info <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div id="factory-entry-1-${unitCount}" class="unit-entry">
+                                    <h4>Factory Entry 1</h4>
+                                    <div class="form-group">
+                                        <label for="factory-production-unit-1-${unitCount}">Production Unit *</label>
+                                        <input type="text" id="factory-production-unit-1-${unitCount}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="factory-address-1-${unitCount}">Production Factory Address *</label>
+                                        <input type="text" id="factory-address-1-${unitCount}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="establishment-year-1-${unitCount}">Establishment Year *</label>
+                                        <input type="number" id="establishment-year-1-${unitCount}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="business-commencement-year-1-${unitCount}">Business Commencement Year *</label>
+                                        <input type="number" id="business-commencement-year-1-${unitCount}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="no-of-workers-1-${unitCount}">No. of Workers</label>
+                                        <input type="number" id="no-of-workers-1-${unitCount}">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="no-of-staffs-1-${unitCount}">No. of Staffs</label>
+                                        <input type="number" id="no-of-staffs-1-${unitCount}">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="machinery-details-1-${unitCount}">Machinery Details *</label>
+                                        <textarea id="machinery-details-1-${unitCount}" required></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="daily-monthly-output-1-${unitCount}">Daily/Monthly Output *</label>
+                                        <input type="text" id="daily-monthly-output-1-${unitCount}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="head-op-name-1-${unitCount}">Head of Operation Name *</label>
+                                        <input type="text" id="head-op-name-1-${unitCount}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="head-op-designation-1-${unitCount}">Head of Operation Designation *</label>
+                                        <input type="text" id="head-op-designation-1-${unitCount}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="head-op-contact-1-${unitCount}">Head of Operation Contact Number *</label>
+                                        <input type="text" id="head-op-contact-1-${unitCount}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="head-op-email-1-${unitCount}">Head of Operation E-mail *</label>
+                                        <input type="email" id="head-op-email-1-${unitCount}" required>
+                                    </div>
+                                    <button class="delete-btn">Delete Entry</button>
+                                </div>
+                                <button class="add-another-unit" data-unit="${unitCount}">Add Another Factory</button>
+                                <button class="previous" data-unit="${unitCount}" data-section="factory-info">Previous</button>
+                                <button class="next" data-unit="${unitCount}" data-section="factory-info">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="legal-info-${unitCount}">
+                            <div class="sub-section-header">Legal Info <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="legal-entity-${unitCount}">Legal Entity of the Company *</label>
+                                    <input type="text" id="legal-entity-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="country-incorporation-${unitCount}">Country of Incorporation *</label>
+                                    <input type="text" id="country-incorporation-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="geo-location-${unitCount}">Supplier's Geographical Location (City, Country) *</label>
+                                    <input type="text" id="geo-location-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="registered-address-${unitCount}">Registered Address *</label>
+                                    <input type="text" id="registered-address-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="tin-gstn-${unitCount}">TIN Number/GSTN Number *</label>
+                                    <input type="text" id="tin-gstn-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="trade-license-${unitCount}">Trade License Number *</label>
+                                    <input type="text" id="trade-license-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="bin-number-${unitCount}">BIN Number *</label>
+                                    <input type="text" id="bin-number-${unitCount}" required>
+                                </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="legal-info">Previous</button>
+                                <button class="next" data-unit="${unitCount}" data-section="legal-info">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="agent-info-${unitCount}">
+                            <div class="sub-section-header">Agent Info <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="agent-name-${unitCount}">Name of the Agent (Company) *</label>
+                                    <input type="text" id="agent-name-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="agent-address-${unitCount}">Agent Address *</label>
+                                    <input type="text" id="agent-address-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="agent-contact-${unitCount}">Agent Contact Number *</label>
+                                    <input type="text" id="agent-contact-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="agent-email-${unitCount}">Agent E-mail *</label>
+                                    <input type="email" id="agent-email-${unitCount}" required>
+                                </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="agent-info">Previous</button>
+                                <button class="next" data-unit="${unitCount}" data-section="agent-info">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="marketing-concern-${unitCount}">
+                            <div class="sub-section-header">Marketing Concern <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="marketing-name-${unitCount}">Name *</label>
+                                    <input type="text" id="marketing-name-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="marketing-designation-${unitCount}">Designation *</label>
+                                    <input type="text" id="marketing-designation-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="marketing-contact-${unitCount}">Contact Number *</label>
+                                    <input type="text" id="marketing-contact-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="marketing-email-${unitCount}">E-mail Address *</label>
+                                    <input type="email" id="marketing-email-${unitCount}" required>
+                                </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="marketing-concern">Previous</button>
+                                <button class="next" data-unit="${unitCount}" data-section="marketing-concern">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="authorized-signatory-${unitCount}">
+                            <div class="sub-section-header">Authorized Signatory Person <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="signatory-name-${unitCount}">Name *</label>
+                                    <input type="text" id="signatory-name-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="signatory-designation-${unitCount}">Designation *</label>
+                                    <input type="text" id="signatory-designation-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="signatory-contact-${unitCount}">Contact Number *</label>
+                                    <input type="text" id="signatory-contact-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="signatory-email-${unitCount}">E-mail Address *</label>
+                                    <input type="email" id="signatory-email-${unitCount}" required>
+                                </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="authorized-signatory">Previous</button>
+                                <button class="next-section" data-unit="${unitCount}" data-section="authorized-signatory">Next Section</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Manufacturing Info -->
+                <div class="main-section" id="manufacturing-info-${unitCount}">
+                    <div class="main-section-header">Manufacturing Info <span class="status not-started">Not Started</span></div>
+                    <div class="main-content">
+                        <div class="sub-section" id="product-section-${unitCount}">
+                            <div class="sub-section-header">Product <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="production-unit-select-${unitCount}">Select Production Unit *</label>
+                                    <select id="production-unit-select-${unitCount}" required>
+                                        <option value="">Select a Production Unit</option>
+                                        <option value="${unitName}">${unitName}</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="fiber-type-${unitCount}">Fiber Type *</label>
+                                    <input type="text" id="fiber-type-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="yarn-type-${unitCount}">Yarn Type *</label>
+                                    <input type="text" id="yarn-type-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="program-${unitCount}">Program *</label>
+                                    <input type="text" id="program-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="sub-program-${unitCount}">Sub-program *</label>
+                                    <input type="text" id="sub-program-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="certification-${unitCount}">Certification *</label>
+                                    <input type="text" id="certification-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="technical-parameter-${unitCount}">Technical Parameter *</label>
+                                    <input type="text" id="technical-parameter-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="shade-reference-${unitCount}">Shade Reference *</label>
+                                    <input type="text" id="shade-reference-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="manufacturing-line-${unitCount}">Manufacturing Line *</label>
+                                    <input type="text" id="manufacturing-line-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="manufacturing-process-${unitCount}">Manufacturing Process *</label>
+                                    <input type="text" id="manufacturing-process-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="manufacturing-sub-process-${unitCount}">Manufacturing Sub-process *</label>
+                                    <input type="text" id="manufacturing-sub-process-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="color-${unitCount}">Color</label>
+                                    <input type="text" id="color-${unitCount}">
+                                </div>
+                                <div class="form-group">
+                                    <label for="color-grade-${unitCount}">Color Grade</label>
+                                    <input type="text" id="color-grade-${unitCount}">
+                                </div>
+                                <div class="form-group">
+                                    <label for="count-${unitCount}">Count *</label>
+                                    <input type="text" id="count-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="yarn-structure-${unitCount}">Yarn Structure *</label>
+                                    <input type="text" id="yarn-structure-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="capacity-${unitCount}">Capacity *</label>
+                                    <input type="text" id="capacity-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="moq-${unitCount}">MOQ *</label>
+                                    <input type="text" id="moq-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="quality-${unitCount}">Quality *</label>
+                                    <input type="text" id="quality-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="natural-fiber-source-${unitCount}">Source of Natural Fiber *</label>
+                                    <input type="text" id="natural-fiber-source-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="animal-fiber-source-${unitCount}">Source of Animal Fiber *</label>
+                                    <input type="text" id="animal-fiber-source-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="man-made-fiber-source-${unitCount}">Source of Man Made Fiber *</label>
+                                    <input type="text" id="man-made-fiber-source-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="blended-fiber-source-${unitCount}">Source of Blended Fiber *</label>
+                                    <input type="text" id="blended-fiber-source-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="melange-fiber-source-${unitCount}">Source of Mélange Fiber *</label>
+                                    <input type="text" id="melange-fiber-source-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="fiber-facility-${unitCount}">Which types of fiber facility you are having currently *</label>
+                                    <input type="text" id="fiber-facility-${unitCount}" required>
+                                </div>
+                                <button class="next" data-unit="${unitCount}" data-section="product-section">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="lead-time-section-${unitCount}">
+                            <div class="sub-section-header">Lead Time <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="manufacturing-lead-time-${unitCount}">Manufacturing Lead Time *</label>
+                                    <input type="text" id="manufacturing-lead-time-${unitCount}" required>
+                                </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="lead-time-section">Previous</button>
+                                <button class="next" data-unit="${unitCount}" data-section="lead-time-section">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="packing-section-${unitCount}">
+                            <div class="sub-section-header">Packing <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="yarn-net-weight-${unitCount}">Yarn Net Weight per Cone *</label>
+                                    <input type="text" id="yarn-net-weight-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="cone-per-carton-${unitCount}">Cone per Carton *</label>
+                                    <input type="text" id="cone-per-carton-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="gross-weight-carton-${unitCount}">Gross Weight per Carton *</label>
+                                    <input type="text" id="gross-weight-carton-${unitCount}" required>
+                                </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="packing-section">Previous</button>
+                                <button class="next" data-unit="${unitCount}" data-section="packing-section">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="certification-compliance-section-${unitCount}">
+                            <div class="sub-section-header">Certification & Compliance <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="sustainability-certifications-${unitCount}">Sustainability Certifications *</label>
+                                    <input type="text" id="sustainability-certifications-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="validity-date-${unitCount}">Validity Date *</label>
+                                    <input type="text" id="validity-date-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="social-environmental-audits-${unitCount}">Social/Environmental Audits *</label>
+                                    <input type="text" id="social-environmental-audits-${unitCount}" required>
+                                </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="certification-compliance-section">Previous</button>
+                                <button class="next" data-unit="${unitCount}" data-section="certification-compliance-section">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="traceability-platform-section-${unitCount}">
+                            <div class="sub-section-header">Traceability Platform <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="traceability-platform-${unitCount}">Traceability Platform</label>
+                                    <input type="text" id="traceability-platform-${unitCount}">
+                                </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="traceability-platform-section">Previous</button>
+                                <button class="save-add-unit" data-unit="${unitCount}">Save & Add Another Unit</button>
+                                <button class="next-section" data-unit="${unitCount}" data-section="traceability-platform-section">Next Section</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Commercial & Finance -->
+                <div class="main-section" id="commercial-finance-${unitCount}">
+                    <div class="main-section-header">Commercial & Finance <span class="status not-started">Not Started</span></div>
+                    <div class="main-content">
+                        <div class="sub-section" id="commercial-info-${unitCount}">
+                            <div class="sub-section-header">Commercial Info <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="inco-term-${unitCount}">Inco Term *</label>
+                                    <input type="text" id="inco-term-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="port-loading-${unitCount}">Port of Loading Name *</label>
+                                    <input type="text" id="port-loading-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="connecting-port-${unitCount}">Connecting Port Name *</label>
+                                    <input type="text" id="connecting-port-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="shipping-method-${unitCount}">Preferred Shipping Method *</label>
+                                    <input type="text" id="shipping-method-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="container-size-${unitCount}">Container Size *</label>
+                                    <input type="text" id="container-size-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="transshipment-${unitCount}">Transshipment *</label>
+                                    <input type="text" id="transshipment-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="inland-transit-${unitCount}">In-Land Transit (Ex-mill to Ex-Country) *</label>
+                                    <input type="text" id="inland-transit-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="sea-transit-${unitCount}">Sea Transit (Ex-Country to ETA Chtg Port) *</label>
+                                    <input type="text" id="sea-transit-${unitCount}" required>
+                                </div>
+                                <button class="previous-section" data-unit="${unitCount}" data-section="commercial-info">Previous Section</button>
+                                <button class="next" data-unit="${unitCount}" data-section="commercial-info">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="finance-${unitCount}">
+                            <div class="sub-section-header">Finance <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="bank-name-${unitCount}">Bank Name *</label>
+                                    <input type="text" id="bank-name-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="account-number-${unitCount}">Account Number *</label>
+                                    <input type="text" id="account-number-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="advising-bank-account-${unitCount}">Supplier's Advising Bank Account No. *</label>
+                                    <input type="text" id="advising-bank-account-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="advising-bank-branch-${unitCount}">Supplier's Advising Bank Branch Name *</label>
+                                    <input type="text" id="advising-bank-branch-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="advising-bank-account-type-${unitCount}">Advising Bank Account Type *</label>
+                                    <input type="text" id="advising-bank-account-type-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="advising-bank-routing-${unitCount}">Advising Bank Routing Number *</label>
+                                    <input type="text" id="advising-bank-routing-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="advising-bank-swift-${unitCount}">Advising Bank Swift Code *</label>
+                                    <input type="text" id="advising-bank-swift-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="negotiating-bank-name-${unitCount}">Supplier's Negotiating Bank Name *</label>
+                                    <input type="text" id="negotiating-bank-name-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="negotiating-bank-account-${unitCount}">Supplier's Negotiating Bank Account No. *</label>
+                                    <input type="text" id="negotiating-bank-account-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="negotiating-bank-branch-${unitCount}">Supplier's Negotiating Bank Branch Name *</label>
+                                    <input type="text" id="negotiating-bank-branch-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="negotiating-bank-account-type-${unitCount}">Negotiating Bank Account Type *</label>
+                                    <input type="text" id="negotiating-bank-account-type-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="negotiating-bank-routing-${unitCount}">Negotiating Bank Routing Number *</label>
+                                    <input type="text" id="negotiating-bank-routing-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="negotiating-bank-swift-${unitCount}">Negotiating Bank Swift Code *</label>
+                                    <input type="text" id="negotiating-bank-swift-${unitCount}" required>
+                                </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="finance">Previous</button>
+                                <button class="next" data-unit="${unitCount}" data-section="finance">Next</button>
+                            </div>
+                        </div>
+                        <div class="sub-section" id="payment-info-${unitCount}">
+                            <div class="sub-section-header">Payment Info <span class="status not-started">Not Started</span></div>
+                            <div class="sub-section-content">
+                                <div class="form-group">
+                                    <label for="currency-${unitCount}">Currency *</label>
+                                    <input type="text" id="currency-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="payment-terms-${unitCount}">Payment Terms *</label>
+                                    <input type="text" id="payment-terms-${unitCount}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="payment-method-${unitCount}">Payment Method *</label>
+                                    <input type="text" id="payment-method-${unitCount}" required>
+                                </div>
+                                <div class="form-section">
+                                <h3>Document Hub</h3>
+                                <div class="form-group">
+                                    <label for="trade_license">Trade License *</label>
+                                    <input type="file" id="trade_license" name="trade_license" accept=".pdf,.jpg,.png" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="bin">BIN *</label>
+                                    <input type="file" id="bin" name="bin" accept=".pdf,.jpg,.png" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="tin">TIN *</label>
+                                    <input type="file" id="tin" name="tin" accept=".pdf,.jpg,.png" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="pi">PI *</label>
+                                    <input type="file" id="pi" name="pi" accept=".pdf,.jpg,.png" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="additional_docs">Additional Documents (Optional)</label>
+                                    <input type="file" id="additional_docs" name="additional_docs" accept=".pdf,.jpg,.png" multiple>
+                                </div>
+                            </div>
+                            <div class="form-section">
+                                <h3>Declaration</h3>
+                                <div class="form-group">
+                                    <label for="declaration">
+                                        <input type="checkbox" id="declaration" name="declaration" required>
+                                        I hereby declare that all the information provided above is true and accurate to the best of my knowledge.
+                                    </label>
+                                </div>
+                            </div>
+                                <button class="previous" data-unit="${unitCount}" data-section="payment-info">Previous</button>
+                                <button class="submit" data-unit="${unitCount}">Submit</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            unitContentDiv.appendChild(content);
+
+            // Initialize navigation and expand/collapse for this unit
+            initializeUnit(unitCount);
+
+            // Switch to the new unit
+            switchUnit(unitCount - 1);
+        }
+
+        function removeUnit(index) {
+            units.splice(index, 1);
+            document.getElementById(`tab-${index + 1}`).remove();
+            document.getElementById(`content-${index + 1}`).remove();
+            unitCount--;
+            // Renumber remaining tabs and content
+            units.forEach((unit, i) => {
+                const tab = document.getElementById(`tab-${i + 2}`);
+                const content = document.getElementById(`content-${i + 2}`);
+                if (tab) {
+                    tab.id = `tab-${i + 1}`;
+                    tab.querySelector('.remove-tab').setAttribute('data-unit', i + 1);
+                }
+                if (content) content.id = `content-${i + 1}`;
+            });
+            // Switch to the last unit or none if no units remain
+            if (units.length > 0) {
+                switchUnit(units.length - 1);
+            } else {
+                currentUnitIndex = -1;
+                document.querySelectorAll('.unit-content').forEach(content => {
+                    content.style.display = 'none';
+                });
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+            }
+        }
+
+        function switchUnit(index) {
+            if (index < 0 || index >= units.length) return;
+            currentUnitIndex = index;
+
+            // Update tabs
+            document.querySelectorAll('.tab').forEach((tab, i) => {
+                tab.classList.toggle('active', i === index);
+            });
+
+            // Update content
+            document.querySelectorAll('.unit-content').forEach((content, i) => {
+                content.style.display = i === index ? 'block' : 'none';
+            });
+
+            // Update all statuses for the active unit
+            const content = document.getElementById(`content-${index + 1}`);
+            content.querySelectorAll('.sub-section').forEach(subSection => {
+                updateSectionStatus(subSection, index + 1);
+            });
+            content.querySelectorAll('.main-section').forEach(mainSection => {
+                updateMainSectionStatus(mainSection, index + 1);
+            });
+        }
+
+        function initializeUnit(unitId) {
+            const content = document.getElementById(`content-${unitId}`);
+            const sectionOrder = {
+                'general-admin': ['basic-info', 'factory-info', 'legal-info', 'agent-info', 'marketing-concern', 'authorized-signatory'],
+                'manufacturing-info': ['product-section', 'lead-time-section', 'packing-section', 'certification-compliance-section', 'traceability-platform-section'],
+                'commercial-finance': ['commercial-info', 'finance', 'payment-info']
+            };
+
+            // Toggle main section
+            content.querySelectorAll('.main-section-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const section = header.parentElement;
+                    const isOpen = section.classList.contains('open');
+                    // Close all main sections
+                    content.querySelectorAll('.main-section').forEach(s => {
+                        s.classList.remove('open');
+                        s.querySelectorAll('.sub-section').forEach(sub => sub.classList.remove('open'));
+                    });
+                    // Open clicked section
+                    if (!isOpen) {
+                        section.classList.add('open');
+                        // Open first subsection
+                        const firstSubSection = section.querySelector('.sub-section');
+                        if (firstSubSection) firstSubSection.classList.add('open');
+                    }
+                    // Update statuses
+                    content.querySelectorAll('.sub-section').forEach(subSection => {
+                        updateSectionStatus(subSection, unitId);
+                    });
+                    content.querySelectorAll('.main-section').forEach(mainSection => {
+                        updateMainSectionStatus(mainSection, unitId);
+                    });
+                });
+            });
+
+            // Toggle sub-section
+            content.querySelectorAll('.sub-section-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const subSection = header.parentElement;
+                    const mainSection = subSection.closest('.main-section');
+                    const isOpen = subSection.classList.contains('open');
+                    // Close all subsections in the same main section
+                    mainSection.querySelectorAll('.sub-section').forEach(s => s.classList.remove('open'));
+                    // Open clicked subsection
+                    if (!isOpen) subSection.classList.add('open');
+                    // Update statuses
+                    updateSectionStatus(subSection, unitId);
+                    updateMainSectionStatus(mainSection, unitId);
+                });
+            });
+
+            // Update status on input change
+            content.querySelectorAll('input, textarea, select').forEach(field => {
+                field.addEventListener('input', () => {
+                    const subSection = field.closest('.sub-section');
+                    const mainSection = field.closest('.main-section');
+                    if (subSection) updateSectionStatus(subSection, unitId);
+                    if (mainSection) updateMainSectionStatus(mainSection, unitId);
+                });
+            });
+
+            function getMainSectionId(button) {
+                const mainSection = button.closest('.main-section');
+                if (!mainSection || !mainSection.id) {
+                    console.warn('Main section not found or missing ID for button:', button);
+                    return null;
+                }
+                const idParts = mainSection.id.split('-');
+                const mainSectionId = idParts[0] + (idParts[1] !== 'info' && idParts[1] !== 'finance' ? '-' + idParts[1] : '');
+                return mainSectionId in sectionOrder ? mainSectionId : null;
+            }
+
+            function getNextSection(currentSectionId, mainSectionId) {
+                if (!mainSectionId || !sectionOrder[mainSectionId]) {
+                    console.warn('Invalid main section ID:', mainSectionId);
+                    return null;
+                }
+                const sections = sectionOrder[mainSectionId];
+                const currentIndex = sections.indexOf(currentSectionId);
+                return currentIndex < sections.length - 1 ? sections[currentIndex + 1] : null;
+            }
+
+            function getPreviousSection(currentSectionId, mainSectionId) {
+                if (!mainSectionId || !sectionOrder[mainSectionId]) {
+                    console.warn('Invalid main section ID:', mainSectionId);
+                    return null;
+                }
+                const sections = sectionOrder[mainSectionId];
+                const currentIndex = sections.indexOf(currentSectionId);
+                return currentIndex > 0 ? sections[currentIndex - 1] : null;
+            }
+
+            function openSubSection(mainSectionId, sectionId) {
+                const mainSection = document.getElementById(`${mainSectionId}-${unitId}`);
+                const subSection = document.getElementById(`${sectionId}-${unitId}`);
+                if (mainSection && subSection) {
+                    // Close all main sections and subsections
+                    content.querySelectorAll('.main-section').forEach(s => {
+                        s.classList.remove('open');
+                        s.querySelectorAll('.sub-section').forEach(sub => sub.classList.remove('open'));
+                    });
+                    // Open target main section and subsection
+                    mainSection.classList.add('open');
+                    subSection.classList.add('open');
+                    // Update statuses
+                    content.querySelectorAll('.sub-section').forEach(sub => {
+                        updateSectionStatus(sub, unitId);
+                    });
+                    content.querySelectorAll('.main-section').forEach(main => {
+                        updateMainSectionStatus(main, unitId);
+                    });
+                } else {
+                    console.warn('Failed to open subsection:', { mainSectionId, sectionId, unitId });
+                }
+            }
+
+            // Initialize navigation
+            content.querySelectorAll(`button[data-unit="${unitId}"]:not(.add-another-unit):not(.delete-btn)`).forEach(button => {
+                const sectionId = button.dataset.section;
+                const mainSectionId = getMainSectionId(button);
+
+                if (!mainSectionId || !sectionId) {
+                    console.warn('Invalid navigation button:', { sectionId, mainSectionId, button });
+                    return;
+                }
+
+                if (button.classList.contains('next')) {
+                    button.addEventListener('click', () => {
+                        const currentSubSection = document.getElementById(`${sectionId}-${unitId}`);
+                        const requiredFields = currentSubSection.querySelectorAll(
+                            'input[required]:not([readonly]), textarea[required], select[required]'
+                        );
+                        let valid = true;
+                        requiredFields.forEach(field => {
+                            if (!field.value.trim()) {
+                                valid = false;
+                                field.style.borderColor = 'red';
+                            } else {
+                                field.style.borderColor = '';
+                            }
+                        });
+                        if (!valid) {
+                            alert('সব প্রয়োজনীয় ক্ষেত্র পূরণ করুন।');
+                            return;
+                        }
+                        const nextSection = getNextSection(sectionId, mainSectionId);
+                        if (nextSection) {
+                            openSubSection(mainSectionId, nextSection);
+                        }
+                    });
+                } else if (button.classList.contains('previous')) {
+                    button.addEventListener('click', () => {
+                        const prevSection = getPreviousSection(sectionId, mainSectionId);
+                        if (prevSection) {
+                            openSubSection(mainSectionId, prevSection);
+                        }
+                    });
+                } else if (button.classList.contains('next-section')) {
+                    button.addEventListener('click', () => {
+                        const currentSubSection = document.getElementById(`${sectionId}-${unitId}`);
+                        const requiredFields = currentSubSection.querySelectorAll(
+                            'input[required]:not([readonly]), textarea[required], select[required]'
+                        );
+                        let valid = true;
+                        requiredFields.forEach(field => {
+                            if (!field.value.trim()) {
+                                valid = false;
+                                field.style.borderColor = 'red';
+                            } else {
+                                field.style.borderColor = '';
+                            }
+                        });
+                        if (!valid) {
+                            alert('সব প্রয়োজনীয় ক্ষেত্র পূরণ করুন।');
+                            return;
+                        }
+                        const nextMainSection = {
+                            'general-admin': 'manufacturing-info',
+                            'manufacturing-info': 'commercial-finance',
+                            'commercial-finance': null
+                        }[mainSectionId];
+                        if (nextMainSection) {
+                            openSubSection(nextMainSection, sectionOrder[nextMainSection][0]);
+                        }
+                    });
+                } else if (button.classList.contains('previous-section')) {
+                    button.addEventListener('click', () => {
+                        const prevMainSection = {
+                            'general-admin': null,
+                            'manufacturing-info': 'general-admin',
+                            'commercial-finance': 'manufacturing-info'
+                        }[mainSectionId];
+                        if (prevMainSection) {
+                            const lastSection = sectionOrder[prevMainSection].slice(-1)[0];
+                            openSubSection(prevMainSection, lastSection);
+                        }
+                    });
+                } else if (button.classList.contains('submit')) {
+                    button.addEventListener('click', () => {
+                        const requiredFields = content.querySelectorAll(
+                            'input[required]:not([readonly]), textarea[required], select[required]'
+                        );
+                        let valid = true;
+                        requiredFields.forEach(field => {
+                            if (!field.value.trim()) {
+                                valid = false;
+                                field.style.borderColor = 'red';
+                            } else {
+                                field.style.borderColor = '';
+                            }
+                        });
+                        if (!valid) {
+                            alert('সব প্রয়োজনীয় ক্ষেত্র পূরণ করুন।');
+                            return;
+                        }
+
+                        // Save data
+                        const unitData = units[unitId - 1].data;
+                        unitData.generalAdmin = {
+                            address: document.getElementById(`unit-address-${unitId}`).value,
+                            corporateAddress: document.getElementById(`corporate-address-${unitId}`).value,
+                            websites: document.getElementById(`websites-${unitId}`).value,
+                            factoryInfo: [],
+                            legalInfo: {
+                                legalEntity: document.getElementById(`legal-entity-${unitId}`).value,
+                                countryIncorporation: document.getElementById(`country-incorporation-${unitId}`).value,
+                                geoLocation: document.getElementById(`geo-location-${unitId}`).value,
+                                registeredAddress: document.getElementById(`registered-address-${unitId}`).value,
+                                tinGstn: document.getElementById(`tin-gstn-${unitId}`).value,
+                                tradeLicense: document.getElementById(`trade-license-${unitId}`).value,
+                                binNumber: document.getElementById(`bin-number-${unitId}`).value
+                            },
+                            agentInfo: {
+                                name: document.getElementById(`agent-name-${unitId}`).value,
+                                address: document.getElementById(`agent-address-${unitId}`).value,
+                                contact: document.getElementById(`agent-contact-${unitId}`).value,
+                                email: document.getElementById(`agent-email-${unitId}`).value
+                            },
+                            marketingConcern: {
+                                name: document.getElementById(`marketing-name-${unitId}`).value,
+                                designation: document.getElementById(`marketing-designation-${unitId}`).value,
+                                contact: document.getElementById(`marketing-contact-${unitId}`).value,
+                                email: document.getElementById(`marketing-email-${unitId}`).value
+                            },
+                            authorizedSignatory: {
+                                name: document.getElementById(`signatory-name-${unitId}`).value,
+                                designation: document.getElementById(`signatory-designation-${unitId}`).value,
+                                contact: document.getElementById(`signatory-contact-${unitId}`).value,
+                                email: document.getElementById(`signatory-email-${unitId}`).value
+                            }
+                        };
+                        unitData.manufacturingInfo = {
+                            productionUnit: document.getElementById(`production-unit-select-${unitId}`).value,
+                            product: {
+                                fiberType: document.getElementById(`fiber-type-${unitId}`).value,
+                                yarnType: document.getElementById(`yarn-type-${unitId}`).value,
+                                program: document.getElementById(`program-${unitId}`).value,
+                                subProgram: document.getElementById(`sub-program-${unitId}`).value,
+                                certification: document.getElementById(`certification-${unitId}`).value,
+                                technicalParameter: document.getElementById(`technical-parameter-${unitId}`).value,
+                                shadeReference: document.getElementById(`shade-reference-${unitId}`).value,
+                                manufacturingLine: document.getElementById(`manufacturing-line-${unitId}`).value,
+                                manufacturingProcess: document.getElementById(`manufacturing-process-${unitId}`).value,
+                                manufacturingSubProcess: document.getElementById(`manufacturing-sub-process-${unitId}`).value,
+                                color: document.getElementById(`color-${unitId}`).value,
+                                colorGrade: document.getElementById(`color-grade-${unitId}`).value,
+                                count: document.getElementById(`count-${unitId}`).value,
+                                yarnStructure: document.getElementById(`yarn-structure-${unitId}`).value,
+                                capacity: document.getElementById(`capacity-${unitId}`).value,
+                                moq: document.getElementById(`moq-${unitId}`).value,
+                                quality: document.getElementById(`quality-${unitId}`).value,
+                                naturalFiberSource: document.getElementById(`natural-fiber-source-${unitId}`).value,
+                                animalFiberSource: document.getElementById(`animal-fiber-source-${unitId}`).value,
+                                manMadeFiberSource: document.getElementById(`man-made-fiber-source-${unitId}`).value,
+                                blendedFiberSource: document.getElementById(`blended-fiber-source-${unitId}`).value,
+                                melangeFiberSource: document.getElementById(`melange-fiber-source-${unitId}`).value,
+                                fiberFacility: document.getElementById(`fiber-facility-${unitId}`).value
+                            },
+                            leadTime: document.getElementById(`manufacturing-lead-time-${unitId}`).value,
+                            packing: {
+                                yarnNetWeight: document.getElementById(`yarn-net-weight-${unitId}`).value,
+                                conePerCarton: document.getElementById(`cone-per-carton-${unitId}`).value,
+                                grossWeightCarton: document.getElementById(`gross-weight-carton-${unitId}`).value
+                            },
+                            certificationCompliance: {
+                                sustainabilityCertifications: document.getElementById(`sustainability-certifications-${unitId}`).value,
+                                validityDate: document.getElementById(`validity-date-${unitId}`).value,
+                                socialEnvironmentalAudits: document.getElementById(`social-environmental-audits-${unitId}`).value
+                            },
+                            traceabilityPlatform: document.getElementById(`traceability-platform-${unitId}`).value
+                        };
+                        unitData.commercialFinance = {
+                            commercialInfo: {
+                                incoTerm: document.getElementById(`inco-term-${unitId}`).value,
+                                portLoading: document.getElementById(`port-loading-${unitId}`).value,
+                                connectingPort: document.getElementById(`connecting-port-${unitId}`).value,
+                                shippingMethod: document.getElementById(`shipping-method-${unitId}`).value,
+                                containerSize: document.getElementById(`container-size-${unitId}`).value,
+                                transshipment: document.getElementById(`transshipment-${unitId}`).value,
+                                inlandTransit: document.getElementById(`inland-transit-${unitId}`).value,
+                                seaTransit: document.getElementById(`sea-transit-${unitId}`).value
+                            },
+                            finance: {
+                                bankName: document.getElementById(`bank-name-${unitId}`).value,
+                                accountNumber: document.getElementById(`account-number-${unitId}`).value,
+                                advisingBankAccount: document.getElementById(`advising-bank-account-${unitId}`).value,
+                                advisingBankBranch: document.getElementById(`advising-bank-branch-${unitId}`).value,
+                                advisingBankAccountType: document.getElementById(`advising-bank-account-type-${unitId}`).value,
+                                advisingBankRouting: document.getElementById(`advising-bank-routing-${unitId}`).value,
+                                advisingBankSwift: document.getElementById(`advising-bank-swift-${unitId}`).value,
+                                negotiatingBankName: document.getElementById(`negotiating-bank-name-${unitId}`).value,
+                                negotiatingBankAccount: document.getElementById(`negotiating-bank-account-${unitId}`).value,
+                                negotiatingBankBranch: document.getElementById(`negotiating-bank-branch-${unitId}`).value,
+                                negotiatingBankAccountType: document.getElementById(`negotiating-bank-account-type-${unitId}`).value,
+                                negotiatingBankRouting: document.getElementById(`negotiating-bank-routing-${unitId}`).value,
+                                negotiatingBankSwift: document.getElementById(`negotiating-bank-swift-${unitId}`).value
+                            },
+                            paymentInfo: {
+                                currency: document.getElementById(`currency-${unitId}`).value,
+                                paymentTerms: document.getElementById(`payment-terms-${unitId}`).value,
+                                paymentMethod: document.getElementById(`payment-method-${unitId}`).value
+                            }
+                        };
+
+                        alert('ইউনিট সফলভাবে জমা দেওয়া হয়েছে!');
+                        // Add actual submission logic here
+                    });
+                }
+            });
+
+            // Add another factory
+            const factoryButton = content.querySelector(`.add-another-unit[data-unit="${unitId}"]`);
+            factoryButton.addEventListener('click', () => {
+                const factoryCount = content.querySelectorAll(`#factory-info-${unitId} .unit-entry`).length + 1;
+                const factoryDiv = document.createElement('div');
+                factoryDiv.className = 'unit-entry';
+                factoryDiv.id = `factory-entry-${factoryCount}-${unitId}`;
+                factoryDiv.innerHTML = `
+                    <h4>Factory Entry ${factoryCount}</h4>
+                    <div class="form-group">
+                        <label for="factory-production-unit-${factoryCount}-${unitId}">Production Unit *</label>
+                        <input type="text" id="factory-production-unit-${factoryCount}-${unitId}" name="factory-production-unit-${factoryCount}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="factory-address-${factoryCount}-${unitId}">Production Factory Address *</label>
+                        <input type="text" id="factory-address-${factoryCount}-${unitId}" name="factory-address-${factoryCount}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="establishment-year-${factoryCount}-${unitId}">Establishment Year *</label>
+                        <input type="number" id="establishment-year-${factoryCount}-${unitId}" name="establishment-year-${factoryCount}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="business-commencement-year-${factoryCount}-${unitId}">Business Commencement Year *</label>
+                        <input type="number" id="business-commencement-year-${factoryCount}-${unitId}" name="business-commencement-year-${factoryCount}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="no-of-workers-${factoryCount}-${unitId}">No. of Workers</label>
+                        <input type="number" id="no-of-workers-${factoryCount}-${unitId}" name="no-of-workers-${factoryCount}">
+                    </div>
+                    <div class="form-group">
+                        <label for="no-of-staffs-${factoryCount}-${unitId}">No. of Staffs</label>
+                        <input type="number" id="no-of-staffs-${unitCount}" name="no-of-staffs-${factoryCount}">
+                    </div>
+                    <div class="form-group">
+                        <label for="machinery-details-${factoryCount}-${unitId}">Machinery Details *</label>
+                        <textarea id="machinery-details-${factoryCount}-${unitId}" name="machinery-details-${factoryCount}" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="daily-monthly-output-${factoryCount}-${unitId}">Daily/Monthly Output *</label>
+                        <input type="text" id="daily-monthly-output-${factoryCount}-${unitId}" name="daily-monthly-output-${factoryCount}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="head-op-name-${factoryCount}-${unitId}">Head of Operation Name *</label>
+                        <input type="text" id="head-op-name-${factoryCount}-${unitId}" name="head-op-name-${factoryCount}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="head-op-designation-${factoryCount}-${unitId}">Head of Operation Designation *</label>
+                        <input type="text" id="head-op-designation-${factoryCount}-${unitId}" name="head-op-designation-${factoryCount}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="head-op-contact-${factoryCount}-${unitId}">Head of Operation Contact Number *</label>
+                        <input type="text" id="head-op-contact-${factoryCount}-${unitId}" name="head-op-contact-${factoryCount}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="head-op-email-${factoryCount}-${unitId}">Head of Operation E-mail *</label>
+                        <input type="email" id="head-op-email-${factoryCount}-${unitId}" name="head-op-email-${factoryCount}" required>
+                    </div>
+                    <button class="delete-btn">Delete Entry</button>
+                `;
+                content.querySelector(`#factory-info-${unitId} .sub-section-content`).insertBefore(factoryDiv, factoryButton);
+                // Add input listeners for new factory fields
+                factoryDiv.querySelectorAll('input, textarea, select').forEach(field => {
+                    field.addEventListener('input', () => {
+                        updateSectionStatus(document.getElementById(`factory-info-${unitId}`), unitId);
+                        updateMainSectionStatus(document.getElementById(`general-admin-${unitId}`), unitId);
+                    });
+                });
+                factoryDiv.querySelector('.delete-btn').addEventListener('click', () => {
+                    factoryDiv.remove();
+                    updateSectionStatus(document.getElementById(`factory-info-${unitId}`), unitId);
+                    updateMainSectionStatus(document.getElementById(`general-admin-${unitId}`), unitId);
+                });
+                updateSectionStatus(document.getElementById(`factory-info-${unitId}`), unitId);
+                updateMainSectionStatus(document.getElementById(`general-admin-${unitId}`), unitId);
+            });
+
+            // Delete factory entry
+            content.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const subSection = button.closest('.sub-section');
+                    const mainSection = button.closest('.main-section');
+                    button.closest('.unit-entry').remove();
+                    updateSectionStatus(subSection, unitId);
+                    updateMainSectionStatus(mainSection, unitId);
+                });
+            });
+
+            // Save and add another unit
+            const saveAddUnitButton = content.querySelector(`.save-add-unit[data-unit="${unitId}"]`);
+            saveAddUnitButton.addEventListener('click', () => {
+                const requiredFields = content.querySelectorAll(
+                    'input[required]:not([readonly]), textarea[required], select[required]'
+                );
+                let valid = true;
+                requiredFields.forEach(field => {
+                    if (!field.value.trim()) {
+                        valid = false;
+                        field.style.borderColor = 'red';
+                    } else {
+                        field.style.borderColor = '';
+                    }
+                });
+                if (!valid) {
+                    alert('সব প্রয়োজনীয় ক্ষেত্র পূরণ করুন।');
+                    return;
+                }
+                // Trigger save logic
+                const submitButton = content.querySelector(`.submit[data-unit="${unitId}"]`);
+                submitButton.click();
+                // Reset fields
+                content.querySelectorAll('input:not([readonly]), textarea, select').forEach(field => {
+                    field.value = '';
+                });
+                // Add new unit
+                addBusinessUnit();
+            });
+
+            // Initial status update
+            content.querySelectorAll('.sub-section').forEach(subSection => {
+                updateSectionStatus(subSection, unitId);
+            });
+            content.querySelectorAll('.main-section').forEach(mainSection => {
+                updateMainSectionStatus(mainSection, unitId);
+            });
+        }
+
+        // Bind add unit button
+        addUnitButton.addEventListener('click', addBusinessUnit);
+    </script>
+</body>
+</html>

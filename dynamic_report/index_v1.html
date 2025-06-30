@@ -503,76 +503,69 @@
             };
 
             const fieldCategories = {
-                "Date Field": [
-                        "Allocation Date",
-                        "Booking Date & Time",
-                        "Fabric Booking Date (FR)",
-                        "Yarn Projection Date",
-                        "Yarn Required Date (FR)",
-                        "Yarn Requirement Date",
-                   
-                        "Fabric Delivery End Date",
-                        "Fabric Delivery Start Date",
-                        "Knitting End Date",
-                        "Knitting Start Date",
-                        "Previous Allocation Date",
-                        "Yarn Booking Date (FR)"
-                    ],
-               
-                "Quantity Field":[
-                        "Allocated Qty.",
-                        "Booking Qty.",
-                        "Net Yarn Req Qty."
-                    ],
-                
-                "Number Field": [
-                        "Allocation No.",
-                        "EWO No.",
-                        "Fabric Booking No.",
-                        "Yarn Projection No.",
-                        "Yarn PI"
-                    ],
-                
-                "Text Field":[
-                        "Fabric Composition",
-                        "Fabric Color",
-                        "General Notes",
-                        "Go for YD",
-                        "Lot Physical",
-                        "Manufacturing Process",
-                        "Merchandiser",
-                        "Merchandising Team",
-                        "Notes",
-                        "Ref. Spinner",
-                        "Revision Reason",
-                        "Spinner Physical",
-                        "Supplier Name",
-                        "TNA Calender",
-                        "Unit Name",
-                        "Yarn Booking Status",
-                        "Yarn Certification"
-                   
-                        "Allocation Remarks",
-                        "Allocation Status",
-                        "Booking By",
-                        "Booking Status: Running/Close"
-                    ],
-               
-                "Others Fields": [
-                        "Buyer Department",
-                        "Buyer Name",
-                        "Buyer Season Name",
-                        "Fabric Construction",
-                        "Count",
-                        "Yarn Description",
-                        "Yarn Sourcing Mode",
-                        "Yarn Composition"
-                   
-                        "Grey Wasteage (%)",
-                        "GSM",
-                        "Textile Projection No."
-                   ]
-                };
+            "Date Fields": [
+                "Allocation Date",
+                "Booking Date & Time",
+                "Fabric Booking Date (FR)",
+                "Yarn Projection Date",
+                "Yarn Required Date (FR)",
+                "Yarn Requirement Date",
+                "Fabric Delivery End Date",
+                "Fabric Delivery Start Date",
+                "Knitting End Date",
+                "Knitting Start Date",
+                "Previous Allocation Date",
+                "Yarn Booking Date (FR)"
+            ],
+            "Quantity Fields": [
+                "Allocated Qty.",
+                "Booking Qty.",
+                "Net Yarn Req Qty."
+            ],
+            "Number Fields": [
+                "Allocation No.",
+                "EWO No.",
+                "Fabric Booking No.",
+                "Yarn Projection No.",
+                "Yarn PI"
+            ],
+            "Text Fields": [
+                "Fabric Composition",
+                "Fabric Color",
+                "General Notes",
+                "Go for YD",
+                "Lot Physical",
+                "Manufacturing Process",
+                "Merchandiser",
+                "Merchandising Team",
+                "Notes",
+                "Ref. Spinner",
+                "Revision Reason",
+                "Spinner Physical",
+                "Supplier Name",
+                "TNA Calender",
+                "Unit Name",
+                "Yarn Booking Status",
+                "Yarn Certification",
+                "Allocation Remarks",
+                "Allocation Status",
+                "Booking By",
+                "Booking Status: Running/Close"
+            ],
+            "Other Fields": [
+                "Buyer Department",
+                "Buyer Name",
+                "Buyer Season Name",
+                "Fabric Construction",
+                "Count",
+                "Yarn Description",
+                "Yarn Sourcing Mode",
+                "Yarn Composition",
+                "Grey Wasteage (%)",
+                "GSM",
+                "Textile Projection No."
+            ]
+        };
             
 
 
@@ -934,44 +927,32 @@
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
-                            {Object.entries(fieldCategories).map(([category, subCategories]) => (
-                                <div key={category} className="mb-4">
-                                    <details className="bg-white p-2 rounded shadow">
-                                        <summary className="font-semibold cursor-pointer">{category} ({Object.values(subCategories).flat().filter(field => !searchTerm || field.toLowerCase().includes(searchTerm.toLowerCase())).length})</summary>
-                                        <div className="mt-2 flex flex-col gap-2">
-                                            {Object.entries(subCategories).map(([subGroup, fields]) => (
-                                                <div key={subGroup}>
+                            {Object.entries(fieldCategories).map(([category, fields]) => (
+                                    <div key={category} className="mb-4">
+                                        <details className="bg-white p-2 rounded shadow">
+                                            <summary className="font-semibold cursor-pointer">
+                                                {category} ({filterFields(fields).length})
+                                            </summary>
+                                            <div className="mt-2 flex flex-col gap-2">
+                                                {filterFields(fields).map(field => (
                                                     <div
-                                                        onClick={() => handleGroupClick(subGroup)}
-                                                        className="bg-blue-500 text-white px-3 py-1 rounded cursor-pointer"
+                                                        key={field}
+                                                        draggable="true"
+                                                        onDragStart={(e) => handleDragStart(e, field)}
+                                                        className={`draggable-field ${selectedFields[field] ? 'checked' : ''}`}
                                                     >
-                                                        {subGroup} ({filterFields(fields).length})
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedFields[field] || false}
+                                                            onChange={() => handleCheckboxChange(field)}
+                                                        />
+                                                        {field}
                                                     </div>
-                                                    <div
-                                                        className={`field-group ${activeGroup === subGroup ? 'active' : ''}`}
-                                                    >
-                                                        {filterFields(fields).map(field => (
-                                                            <div
-                                                                key={field}
-                                                                draggable="true"
-                                                                onDragStart={(e) => handleDragStart(e, field)}
-                                                                className={`draggable-field ${selectedFields[field] ? 'checked' : ''}`}
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={selectedFields[field] || false}
-                                                                    onChange={() => handleCheckboxChange(field)}
-                                                                />
-                                                                {field}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </details>
-                                </div>
-                            ))}
+                                                ))}
+                                            </div>
+                                        </details>
+                                    </div>
+                                ))}
                         </div>
                         <div className="w-3/4">
                             <h1 className="text-2xl font-bold mb-4">Dynamic Report Generator</h1>

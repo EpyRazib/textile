@@ -1,403 +1,3 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><script type="text/javascript">
-    var gk_isXlsx = false;
-    var gk_xlsxFileLookup = {};
-    var gk_fileData = {};
-    function filledCell(cell) {
-        return cell !== '' && cell != null;
-    }
-    function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                    row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                    headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-    }
-</script><!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Report Interface</title>
-    <!-- Tailwind CSS CDN -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet" onerror="console.error('Failed to load Tailwind CSS')">
-    <!-- CDNs with error handling and fallbacks -->
-    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js" onerror="console.error('Failed to load React')"></script>
-    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" onerror="console.error('Failed to load ReactDOM')"></script>
-    <!-- Babel with fallback -->
-    <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js" onerror="loadBabelFallback()"></script>
-    <script>
-        function loadBabelFallback() {
-            console.error('Failed to load primary Babel CDN');
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.25.6/babel.min.js';
-            script.onerror = () => console.error('Failed to load fallback Babel CDN');
-            document.head.appendChild(script);
-        }
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="console.error('Failed to load XLSX')"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" onerror="console.error('Failed to load jsPDF')"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js" onerror="console.error('Failed to load jsPDF-autotable')"></script>
-    <style>
-        .field-group {
-            display: none;
-            margin-top: 5px;
-            padding: 10px;
-            background-color: #fff3cd; /* Light yellow for group */
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
-        }
-        .field-group.active {
-            display: block;
-        }
-        .draggable-field {
-            padding: 5px 10px;
-            margin: 5px 0;
-            background-color: #b3c0ff; /* Deeper blue-gray for fields */
-            color: #333; /* Darker text for contrast */
-            border-radius: 3px;
-            cursor: move;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            transition: background-color 0.3s;
-        }
-        .draggable-field.checked {
-            background-color: #28a745; /* Darker green when checked */
-            color: white; /* White text for contrast with dark green */
-        }
-        .drop-area {
-            min-height: 50px;
-            padding: 10px;
-            border: 2px dashed #ccc;
-            background-color: #e6f3ff; /* Light blue for final fields */
-            margin-bottom: 10px;
-        }
-        .group-by-area {
-            min-height: 50px;
-            padding: 10px;
-            border: 2px dashed #ccc;
-            background-color: #d1e7dd; /* Light green for group by area */
-            margin-bottom: 10px;
-            display: none; /* Hidden by default */
-        }
-        .group-by-area.active {
-            display: block; /* Shown when checkbox is checked */
-        }
-        .draggable-header {
-            cursor: move;
-            padding: 8px;
-            background-color: #f0f0f0;
-            border: 1px solid #ddd;
-            user-select: none;
-            position: relative;
-        }
-        .draggable-header.drag-over {
-            background-color: #e0e0e0;
-        }
-        .filter-input {
-            width: 100%;
-            padding: 2px;
-            font-size: 12px;
-            margin-right: 5px;
-        }
-        .sort-icon {
-            cursor: pointer;
-            display: inline-block;
-            vertical-align: middle;
-        }
-        .header-content {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-        .filter-sort-group {
-            display: flex;
-            align-items: center;
-            width: 100%;
-        }
-        .total-row {
-            font-weight: bold;
-            background-color: #f8f9fa;
-        }
-        .subtotal-row {
-            font-weight: bold;
-            background-color: #e9ecef;
-        }
-    </style>
-</head>
-<body>
-    <div id="root" class="p-4"></div>
-    <script type="text/babel">
-        try {
-            const { useState, useRef } = React;
-            const { jsPDF } = window.jspdf;
-
-            const sampleDatapre = [
-                { id: 1, name: "John Doe", age: 30, department: "Sales", hireDate: "2023-01-15", salary: 50000 },
-                { id: 2, name: "Jane Smith", age: 25, department: "Marketing", hireDate: "2022-06-20", salary: 45000 },
-                { id: 3, name: "Bob Johnson", age: 40, department: "IT", hireDate: "2021-03-10", salary: 60000 },
-                { id: 4, name: "Alice Brown", age: 35, department: "HR", hireDate: "2020-09-05", salary: 55000 },
-            ];
-
-            const sampleData = [
-                {
-                    id: 1,
-                    "Allocated Qty.": 1000,
-                    "Allocation Date": "2025-06-15",
-                    "Allocation No.": "ALLOC2025-001",
-                    "Booking Date & Time": "2025-06-10T10:30:00",
-                    "Booking Qty.": 1500,
-                    "Buyer Department": "Knitwear",
-                    "Buyer Name": "C&A",
-                    "Buyer Season Name": "Autumn 2025",
-                    "Fabric Construction": "Single Jersey",
-                    "Count": "30/1",
-                    "EWO No.": "EWO2025-123",
-                    "Fabric Booking Date (FR)": "2025-05-15",
-                    "Fabric Booking No.": "FB2025-1001",
-                    "Yarn Description": "30/1 Ne Cotton Combed CF",
-                    "Yarn Projection No.": "YP2025-010",
-                    "Yarn Projection Date": "2025-04-20",
-                    "Yarn Required Date (FR)": "2025-07-15",
-                    "Yarn Requirement Date": "2025-07-10",
-                    "Yarn Sourcing Mode": "Local",
-                    "Yarn Composition": "100% Cotton",
-                    
-                    "Fabric Composition": "100% Cotton",
-                    "Fabric Delivery End Date": "2025-08-20",
-                    "Fabric Delivery Start Date": "2025-08-01",
-                    "Fabric Color": "Navy Blue",
-                    "General Notes": "Urgent",
-                    "Go for YD": "Yes",
-                    "Grey Wasteage (%)": 5,
-                    "GSM": 160,
-                    "Knitting End Date": "2025-07-25",
-                    "Knitting Start Date": "2025-07-10",
-                    "Lot Physical": "LOT-PHY-001",
-                    "Manufacturing Process": "Knitting",
-                    "Merchandiser": "Mr. Imran",
-                    "Merchandising Team": "Team A",
-                    "Net Yarn Req Qty.": 950,
-                    "Notes": "Confirm urgently",
-                    "Previous Allocation Date": "2025-05-30",
-                    "Textile Projection No.": "TP2025-001",
-                    "Ref. Spinner": "XYZ Spinning Mills",
-                    "Revision Reason": "Color mismatch",
-                    "Spinner Physical": "SPIN-PHY-001",
-                    "Supplier Name": "ABC Yarns Ltd.",
-                    "TNA Calender": "TNA-2025-July",
-                    "Unit Name": "Unit-1",
-                    "Yarn Booking Date (FR)": "2025-05-28",
-                    "Yarn Booking Status": "Confirmed",
-                    "Yarn Certification": "GOTS",
-                    "Yarn PI": "PI2025-789",
-
-                    "Allocation Remarks": "Partially Allocated",
-                    "Allocation Status": "Running",
-                    "Booking By": "Mr. Tariq",
-                    "Booking Status: Running/Close": "Running"
-                },
-                {
-                    id: 2,
-                    "Allocated Qty.": 2000,
-                    "Allocation Date": "2025-06-18",
-                    "Allocation No.": "ALLOC2025-002",
-                    "Booking Date & Time": "2025-06-12T11:00:00",
-                    "Booking Qty.": 2200,
-                    "Buyer Department": "Woven",
-                    "Buyer Name": "Stanley Stella",
-                    "Buyer Season Name": "Winter 2025",
-                    "Fabric Construction": "Interlock",
-                    "Count": "40/1",
-                    "EWO No.": "EWO2025-124",
-                    "Fabric Booking Date (FR)": "2025-05-18",
-                    "Fabric Booking No.": "FB2025-1002",
-                    "Yarn Description": "40/1 Ne Viscose",
-                    "Yarn Projection No.": "YP2025-011",
-                    "Yarn Projection Date": "2025-04-25",
-                    "Yarn Required Date (FR)": "2025-08-10",
-                    "Yarn Requirement Date": "2025-08-05",
-                    "Yarn Sourcing Mode": "Import",
-                    "Yarn Composition": "100% Viscose",
-                    
-                    "Fabric Composition": "100% Viscose",
-                    "Fabric Delivery End Date": "2025-09-10",
-                    "Fabric Delivery Start Date": "2025-08-20",
-                    "Fabric Color": "Black",
-                    "General Notes": "Check lead time",
-                    "Go for YD": "No",
-                    "Grey Wasteage (%)": 4,
-                    "GSM": 140,
-                    "Knitting End Date": "2025-08-01",
-                    "Knitting Start Date": "2025-07-20",
-                    "Lot Physical": "LOT-PHY-002",
-                    "Manufacturing Process": "Knitting",
-                    "Merchandiser": "Ms. Farzana",
-                    "Merchandising Team": "Team B",
-                    "Net Yarn Req Qty.": 2100,
-                    "Notes": "Check booking carefully",
-                    "Previous Allocation Date": "2025-06-01",
-                    "Textile Projection No.": "TP2025-002",
-                    "Ref. Spinner": "ABC Textiles Ltd.",
-                    "Revision Reason": "Qty. update",
-                    "Spinner Physical": "SPIN-PHY-002",
-                    "Supplier Name": "Delta Yarn Traders",
-                    "TNA Calender": "TNA-2025-Aug",
-                    "Unit Name": "Unit-2",
-                    "Yarn Booking Date (FR)": "2025-06-01",
-                    "Yarn Booking Status": "Pending",
-                    "Yarn Certification": "OEKO-TEX",
-                    "Yarn PI": "PI2025-790",
-
-                    "Allocation Remarks": "Full Allocation",
-                    "Allocation Status": "Allocated",
-                    "Booking By": "Mr. Litan",
-                    "Booking Status: Running/Close": "Close"
-                },
-                {
-                    id: 3,
-                    "Allocated Qty.": 1750,
-                    "Allocation Date": "2025-06-20",
-                    "Allocation No.": "ALLOC2025-003",
-                    "Booking Date & Time": "2025-06-15T09:45:00",
-                    "Booking Qty.": 1800,
-                    "Buyer Department": "Denim",
-                    "Buyer Name": "M&S",
-                    "Buyer Season Name": "Spring 2026",
-                    "Fabric Construction": "Rib",
-                    "Count": "28/1",
-                    "EWO No.": "EWO2025-125",
-                    "Fabric Booking Date (FR)": "2025-05-20",
-                    "Fabric Booking No.": "FB2025-1003",
-                    "Yarn Description": "28/1 Ne Slub Cotton",
-                    "Yarn Projection No.": "YP2025-012",
-                    "Yarn Projection Date": "2025-04-28",
-                    "Yarn Required Date (FR)": "2025-08-20",
-                    "Yarn Requirement Date": "2025-08-15",
-                    "Yarn Sourcing Mode": "Stock",
-                    "Yarn Composition": "Cotton/Polyester",
-
-                    "Fabric Composition": "Cotton/Poly Blend",
-                    "Fabric Delivery End Date": "2025-09-15",
-                    "Fabric Delivery Start Date": "2025-08-25",
-                    "Fabric Color": "Melange Grey",
-                    "General Notes": "Special quality required",
-                    "Go for YD": "No",
-                    "Grey Wasteage (%)": 6,
-                    "GSM": 180,
-                    "Knitting End Date": "2025-08-10",
-                    "Knitting Start Date": "2025-07-28",
-                    "Lot Physical": "LOT-PHY-003",
-                    "Manufacturing Process": "Circular Knitting",
-                    "Merchandiser": "Mr. Sohail",
-                    "Merchandising Team": "Team C",
-                    "Net Yarn Req Qty.": 1720,
-                    "Notes": "Need GRS certification",
-                    "Previous Allocation Date": "2025-06-05",
-                    "Textile Projection No.": "TP2025-003",
-                    "Ref. Spinner": "Delta Yarn Mills",
-                    "Revision Reason": "Urgency",
-                    "Spinner Physical": "SPIN-PHY-003",
-                    "Supplier Name": "Rana Spinning",
-                    "TNA Calender": "TNA-2025-Sep",
-                    "Unit Name": "Unit-3",
-                    "Yarn Booking Date (FR)": "2025-06-05",
-                    "Yarn Booking Status": "Booked",
-                    "Yarn Certification": "GRS",
-                    "Yarn PI": "PI2025-791",
-
-                    "Allocation Remarks": "Urgent need",
-                    "Allocation Status": "Running",
-                    "Booking By": "Mr. Noman",
-                    "Booking Status: Running/Close": "Running"
-                },
-                {
-                    id: 4,
-                    "Allocated Qty.": 1200,
-                    "Allocation Date": "2025-06-22",
-                    "Allocation No.": "ALLOC2025-004",
-                    "Booking Date & Time": "2025-06-18T14:20:00",
-                    "Booking Qty.": 1300,
-                    "Buyer Department": "Activewear",
-                    "Buyer Name": "H&M",
-                    "Buyer Season Name": "Summer 2025",
-                    "Fabric Construction": "Pique",
-                    "Count": "32/1",
-                    "EWO No.": "EWO2025-126",
-                    "Fabric Booking Date (FR)": "2025-05-25",
-                    "Fabric Booking No.": "FB2025-1004",
-                    "Yarn Description": "32/1 Poly-Cotton",
-                    "Yarn Projection No.": "YP2025-013",
-                    "Yarn Projection Date": "2025-05-01",
-                    "Yarn Required Date (FR)": "2025-08-25",
-                    "Yarn Requirement Date": "2025-08-20",
-                    "Yarn Sourcing Mode": "New Purchase",
-                    "Yarn Composition": "65% Polyester, 35% Cotton",
-
                     "Fabric Composition": "Poly-Cotton Blend",
                     "Fabric Delivery End Date": "2025-09-20",
                     "Fabric Delivery Start Date": "2025-08-30",
@@ -426,7 +26,6 @@
                     "Yarn Booking Status": "In Progress",
                     "Yarn Certification": "BCI",
                     "Yarn PI": "PI2025-792",
-
                     "Allocation Remarks": "Quality Check Required",
                     "Allocation Status": "Pending",
                     "Booking By": "Mr. Faisal",
@@ -434,16 +33,7 @@
                 }
             ];
 
-            const fieldConfigpre = {
-                name: { label: "Name", type: "text", options: [...new Set(sampleData.map(item => item.name))] },
-                age: { label: "Age", type: "number" },
-                department: { label: "Department", type: "text", options: [...new Set(sampleData.map(item => item.department))] },
-                hireDate: { label: "Hire Date", type: "date" },
-                salary: { label: "Salary", type: "number" },
-            };
-
             const fieldConfig = {
-                // Core Fields
                 "Allocated Qty.": { label: "Allocated Qty.", type: "number" },
                 "Allocation Date": { label: "Allocation Date", type: "date" },
                 "Allocation No.": { label: "Allocation No.", type: "text" },
@@ -464,8 +54,6 @@
                 "Yarn Requirement Date": { label: "Yarn Requirement Date", type: "date" },
                 "Yarn Sourcing Mode": { label: "Yarn Sourcing Mode", type: "text", options: [...new Set(sampleData.map(item => item["Yarn Sourcing Mode"]))] },
                 "Yarn Composition": { label: "Yarn Composition", type: "text" },
-
-                // Semi Core Fields
                 "Fabric Composition": { label: "Fabric Composition", type: "text" },
                 "Fabric Delivery End Date": { label: "Fabric Delivery End Date", type: "date" },
                 "Fabric Delivery Start Date": { label: "Fabric Delivery Start Date", type: "date" },
@@ -494,8 +82,6 @@
                 "Yarn Booking Status": { label: "Yarn Booking Status", type: "text", options: [...new Set(sampleData.map(item => item["Yarn Booking Status"]))] },
                 "Yarn Certification": { label: "Yarn Certification", type: "text" },
                 "Yarn PI": { label: "Yarn PI", type: "text" },
-
-                // Auxiliary Fields
                 "Allocation Remarks": { label: "Allocation Remarks", type: "text" },
                 "Allocation Status": { label: "Allocation Status", type: "text", options: [...new Set(sampleData.map(item => item["Allocation Status"]))] },
                 "Booking By": { label: "Booking By", type: "text", options: [...new Set(sampleData.map(item => item["Booking By"]))] },
@@ -503,71 +89,69 @@
             };
 
             const fieldCategories = {
-            "Date Fields": [
-                "Allocation Date",
-                "Booking Date & Time",
-                "Fabric Booking Date (FR)",
-                "Yarn Projection Date",
-                "Yarn Required Date (FR)",
-                "Yarn Requirement Date",
-                "Fabric Delivery End Date",
-                "Fabric Delivery Start Date",
-                "Knitting End Date",
-                "Knitting Start Date",
-                "Previous Allocation Date",
-                "Yarn Booking Date (FR)"
-            ],
-            "Quantity Fields": [
-                "Allocated Qty.",
-                "Booking Qty.",
-                "Net Yarn Req Qty."
-            ],
-            "Number Fields": [
-                "Allocation No.",
-                "EWO No.",
-                "Fabric Booking No.",
-                "Yarn Projection No.",
-                "Yarn PI"
-            ],
-            "Text Fields": [
-                "Fabric Composition",
-                "Fabric Color",
-                "General Notes",
-                "Go for YD",
-                "Lot Physical",
-                "Manufacturing Process",
-                "Merchandiser",
-                "Merchandising Team",
-                "Notes",
-                "Ref. Spinner",
-                "Revision Reason",
-                "Spinner Physical",
-                "Supplier Name",
-                "TNA Calender",
-                "Unit Name",
-                "Yarn Booking Status",
-                "Yarn Certification",
-                "Allocation Remarks",
-                "Allocation Status",
-                "Booking By",
-                "Booking Status: Running/Close"
-            ],
-            "Other Fields": [
-                "Buyer Department",
-                "Buyer Name",
-                "Buyer Season Name",
-                "Fabric Construction",
-                "Count",
-                "Yarn Description",
-                "Yarn Sourcing Mode",
-                "Yarn Composition",
-                "Grey Wasteage (%)",
-                "GSM",
-                "Textile Projection No."
-            ]
-        };
-            
-
+                "Date Fields": [
+                    "Allocation Date",
+                    "Booking Date & Time",
+                    "Fabric Booking Date (FR)",
+                    "Yarn Projection Date",
+                    "Yarn Required Date (FR)",
+                    "Yarn Requirement Date",
+                    "Fabric Delivery End Date",
+                    "Fabric Delivery Start Date",
+                    "Knitting End Date",
+                    "Knitting Start Date",
+                    "Previous Allocation Date",
+                    "Yarn Booking Date (FR)"
+                ],
+                "Quantity Fields": [
+                    "Allocated Qty.",
+                    "Booking Qty.",
+                    "Net Yarn Req Qty."
+                ],
+                "Number Fields": [
+                    "Allocation No.",
+                    "EWO No.",
+                    "Fabric Booking No.",
+                    "Yarn Projection No.",
+                    "Yarn PI"
+                ],
+                "Text Fields": [
+                    "Fabric Composition",
+                    "Fabric Color",
+                    "General Notes",
+                    "Go for YD",
+                    "Lot Physical",
+                    "Manufacturing Process",
+                    "Merchandiser",
+                    "Merchandising Team",
+                    "Notes",
+                    "Ref. Spinner",
+                    "Revision Reason",
+                    "Spinner Physical",
+                    "Supplier Name",
+                    "TNA Calender",
+                    "Unit Name",
+                    "Yarn Booking Status",
+                    "Yarn Certification",
+                    "Allocation Remarks",
+                    "Allocation Status",
+                    "Booking By",
+                    "Booking Status: Running/Close"
+                ],
+                "Other Fields": [
+                    "Buyer Department",
+                    "Buyer Name",
+                    "Buyer Season Name",
+                    "Fabric Construction",
+                    "Count",
+                    "Yarn Description",
+                    "Yarn Sourcing Mode",
+                    "Yarn Composition",
+                    "Grey Wasteage (%)",
+                    "GSM",
+                    "Textile Projection No."
+                ]
+            };
 
             const App = () => {
                 const [criteriaFields, setCriteriaFields] = useState([]);
@@ -576,103 +160,20 @@
                 const [reportData, setReportData] = useState([]);
                 const [searchTerm, setSearchTerm] = useState("");
                 const [selectedFields, setSelectedFields] = useState({});
-                const [activeGroup, setActiveGroup] = useState(null);
                 const [columnFilters, setColumnFilters] = useState({});
                 const [sortConfig, setSortConfig] = useState({});
                 const [groupByFields, setGroupByFields] = useState([]);
                 const [showGroupBy, setShowGroupBy] = useState(false);
+                const [currentPage, setCurrentPage] = useState(1);
+                const itemsPerPage = 10;
                 const criteriaDropRef = useRef(null);
                 const reportDropRef = useRef(null);
                 const groupByDropRef = useRef(null);
                 const [draggingHeader, setDraggingHeader] = useState(null);
 
-                const handleDragStart = (e, field) => {
-                    console.log("Drag start for field:", field);
-                    e.dataTransfer.setData("text/plain", field);
-                    setDraggingHeader(field);
-                };
-
-                const handleCriteriaDrop = (e) => {
-                    e.preventDefault();
-                    console.log("Drop event on Criteria Fields");
-                    const field = e.dataTransfer.getData("text/plain");
-                    if (field && !criteriaFields.includes(field)) {
-                        console.log("Field added to Criteria Fields:", field);
-                        setCriteriaFields(prev => [...prev, field]);
-                    }
-                };
-
-                const handleReportDrop = (e) => {
-                    e.preventDefault();
-                    console.log("Drop event on Report Fields");
-                    const field = e.dataTransfer.getData("text/plain");
-                    if (field && !reportFields.includes(field)) {
-                        console.log("Field added to Report Fields:", field);
-                        setReportFields(prev => [...prev, field]);
-                    }
-                };
-
-                const handleGroupByDrop = (e) => {
-                    e.preventDefault();
-                    console.log("Drop event on Group By Fields");
-                    const field = e.dataTransfer.getData("text/plain");
-                    if (field && !groupByFields.includes(field) && (fieldConfig[field].type === 'text' || fieldConfig[field].type === 'date')) {
-                        console.log("Field added to Group By Fields:", field);
-                        setGroupByFields(prev => [...prev, field]);
-                    }
-                };
-
-                const removeGroupByField = (field) => {
-                    setGroupByFields(groupByFields.filter(f => f !== field));
-                };
-
-                const allowDrop = (e) => {
-                    e.preventDefault();
-                    console.log("Drag over allowed");
-                };
-
-                const handleCheckboxChange = (field) => {
-                    setSelectedFields(prev => {
-                        const isSelected = !prev[field];
-                        if (isSelected && !reportFields.includes(field)) {
-                            setReportFields(prev => [...prev, field]);
-                        } else if (!isSelected && reportFields.includes(field)) {
-                            setReportFields(prev => prev.filter(f => f !== field));
-                        }
-                        return { ...prev, [field]: isSelected };
-                    });
-                };
-
-                const handleGroupClick = (group) => {
-                    console.log("Clicked group:", group);
-                    setActiveGroup(activeGroup === group ? null : group);
-                };
-
-                const removeCriteriaField = (field) => {
-                    setCriteriaFields(criteriaFields.filter(f => f !== field));
-                    setFilters(prev => {
-                        const newFilters = { ...prev };
-                        delete newFilters[field];
-                        return newFilters;
-                    });
-                };
-
-                const removeReportField = (field) => {
-                    setReportFields(reportFields.filter(f => f !== field));
-                    setSelectedFields(prev => {
-                        const newSelected = { ...prev };
-                        delete newSelected[field];
-                        return newSelected;
-                    });
-                };
-
-                const handleFilterChange = (field, value) => {
-                    setFilters(prev => ({ ...prev, [field]: value }));
-                };
-
-                const generateReport = () => {
+                const generateReport = useCallback(() => {
                     let filteredData = [...sampleData];
-                    
+
                     // Apply global filters
                     Object.keys(filters).forEach(field => {
                         const filter = filters[field];
@@ -734,14 +235,16 @@
                             const groupItems = groups[groupKey];
                             groupedData.push(...groupItems);
 
-                            // Calculate subtotal for quantity fields
-                            const subtotal = {};
+                            const subtotal = { isSubtotal: true };
+                            groupByFields.forEach(field => {
+                                subtotal[field] = groupKey.split(' | ').find(part => part.startsWith(`${field}:`))?.split(': ')[1] || '';
+                            });
                             ['Allocated Qty.', 'Booking Qty.', 'Net Yarn Req Qty.'].forEach(field => {
                                 if (reportFields.includes(field)) {
                                     subtotal[field] = groupItems.reduce((sum, item) => sum + (item[field] || 0), 0);
                                 }
                             });
-                            groupedData.push({ ...subtotal, [groupByFields[0]]: groupKey, isSubtotal: true });
+                            groupedData.push(subtotal);
                         });
                     } else {
                         groupedData = filteredData;
@@ -757,6 +260,81 @@
                     });
 
                     setReportData(mappedData);
+                }, [filters, columnFilters, sortConfig, groupByFields, reportFields]);
+
+                useEffect(() => {
+                    generateReport();
+                }, [generateReport]);
+
+                const handleDragStart = (e, field) => {
+                    e.dataTransfer.setData("text/plain", field);
+                    setDraggingHeader(field);
+                };
+
+                const handleCriteriaDrop = (e) => {
+                    e.preventDefault();
+                    const field = e.dataTransfer.getData("text/plain");
+                    if (field && !criteriaFields.includes(field)) {
+                        setCriteriaFields(prev => [...prev, field]);
+                    }
+                };
+
+                const handleReportDrop = (e) => {
+                    e.preventDefault();
+                    const field = e.dataTransfer.getData("text/plain");
+                    if (field && !reportFields.includes(field)) {
+                        setReportFields(prev => [...prev, field]);
+                    }
+                };
+
+                const handleGroupByDrop = (e) => {
+                    e.preventDefault();
+                    const field = e.dataTransfer.getData("text/plain");
+                    if (field && !groupByFields.includes(field) && (fieldConfig[field].type === 'text' || fieldConfig[field].type === 'date')) {
+                        setGroupByFields(prev => [...prev, field]);
+                    }
+                };
+
+                const removeGroupByField = (field) => {
+                    setGroupByFields(groupByFields.filter(f => f !== field));
+                };
+
+                const allowDrop = (e) => {
+                    e.preventDefault();
+                };
+
+                const handleCheckboxChange = (field) => {
+                    setSelectedFields(prev => {
+                        const isSelected = !prev[field];
+                        if (isSelected && !reportFields.includes(field)) {
+                            setReportFields(prev => [...prev, field]);
+                        } else if (!isSelected && reportFields.includes(field)) {
+                            setReportFields(prev => prev.filter(f => f !== field));
+                        }
+                        return { ...prev, [field]: isSelected };
+                    });
+                };
+
+                const removeCriteriaField = (field) => {
+                    setCriteriaFields(criteriaFields.filter(f => f !== field));
+                    setFilters(prev => {
+                        const newFilters = { ...prev };
+                        delete newFilters[field];
+                        return newFilters;
+                    });
+                };
+
+                const removeReportField = (field) => {
+                    setReportFields(reportFields.filter(f => f !== field));
+                    setSelectedFields(prev => {
+                        const newSelected = { ...prev };
+                        delete newSelected[field];
+                        return newSelected;
+                    });
+                };
+
+                const handleFilterChange = (field, value) => {
+                    setFilters(prev => ({ ...prev, [field]: value }));
                 };
 
                 const exportToExcel = () => {
@@ -766,8 +344,7 @@
                         XLSX.utils.book_append_sheet(wb, ws, "Report");
                         XLSX.writeFile(wb, "report.xlsx");
                     } else {
-                        console.error("XLSX library not fully loaded or writeFile function missing");
-                        alert("Excel export failed. Please ensure all libraries are loaded. Check console for details.");
+                        alert("Excel export failed. Please ensure all libraries are loaded.");
                     }
                 };
 
@@ -788,8 +365,7 @@
 
                         doc.save("report.pdf");
                     } else {
-                        console.error("jsPDF or autoTable not fully loaded");
-                        alert("PDF export failed. Please ensure all libraries are loaded. Check console for details.");
+                        alert("PDF export failed. Please ensure all libraries are loaded.");
                     }
                 };
 
@@ -800,9 +376,10 @@
                             <select
                                 className="border rounded p-1 w-48"
                                 onChange={(e) => handleFilterChange(field, e.target.value)}
+                                aria-label={`Filter ${config.label}`}
                             >
                                 <option value="">Select {config.label}</option>
-                                {config.options.map(option => (
+                                {config.options?.map(option => (
                                     <option key={option} value={option}>{option}</option>
                                 ))}
                             </select>
@@ -818,6 +395,7 @@
                                         e.target.value ? Number(e.target.value) : 0,
                                         filters[field]?.[1] || Infinity
                                     ])}
+                                    aria-label={`Minimum ${config.label}`}
                                 />
                                 <input
                                     type="number"
@@ -827,6 +405,7 @@
                                         filters[field]?.[0] || 0,
                                         e.target.value ? Number(e.target.value) : Infinity
                                     ])}
+                                    aria-label={`Maximum ${config.label}`}
                                 />
                             </div>
                         );
@@ -840,6 +419,7 @@
                                         e.target.value,
                                         filters[field]?.[1] || ''
                                     ])}
+                                    aria-label={`Start date for ${config.label}`}
                                 />
                                 <input
                                     type="date"
@@ -848,6 +428,7 @@
                                         filters[field]?.[0] || '',
                                         e.target.value
                                     ])}
+                                    aria-label={`End date for ${config.label}`}
                                 />
                             </div>
                         );
@@ -878,7 +459,7 @@
                 const handleHeaderDrop = (e, targetField) => {
                     e.preventDefault();
                     const target = e.target.closest('th');
-                    if (target && draggingHeader && draggingHeader !== target.getAttribute('data-field')) {
+                    if (target && draggingHeader && target.getAttribute('data-field') !== draggingHeader) {
                         const sourceIndex = reportFields.indexOf(draggingHeader);
                         const targetIndex = reportFields.indexOf(target.getAttribute('data-field'));
                         if (sourceIndex !== -1 && targetIndex !== -1) {
@@ -888,20 +469,17 @@
                             setReportFields(newReportFields);
                         }
                     }
-                    const headers = document.querySelectorAll('.draggable-header');
-                    headers.forEach(header => header.classList.remove('drag-over'));
+                    document.querySelectorAll('.draggable-header').forEach(header => header.classList.remove('drag-over'));
                     setDraggingHeader(null);
                 };
 
                 const handleDragEnd = () => {
-                    const headers = document.querySelectorAll('.draggable-header');
-                    headers.forEach(header => header.classList.remove('drag-over'));
+                    document.querySelectorAll('.draggable-header').forEach(header => header.classList.remove('drag-over'));
                     setDraggingHeader(null);
                 };
 
                 const handleColumnFilterChange = (field, value) => {
                     setColumnFilters(prev => ({ ...prev, [field]: value }));
-                    generateReport();
                 };
 
                 const handleSort = (field) => {
@@ -909,50 +487,88 @@
                         field,
                         direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
                     }));
-                    generateReport();
                 };
 
                 const getTotalForQuantity = (field) => {
                     return reportData.reduce((sum, row) => sum + (row[field] || 0), 0);
                 };
 
+                const handleKeyDown = (e, field) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleCheckboxChange(field);
+                    }
+                };
+
+                const paginatedData = reportData.slice(
+                    (currentPage - 1) * itemsPerPage,
+                    currentPage * itemsPerPage
+                );
+
                 return (
                     <div className="max-w-6xl mx-auto flex">
                         <div className="w-1/4 bg-gray-100 p-4 rounded-lg mr-4">
                             <h2 className="text-lg font-semibold mb-2">Available Fields</h2>
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                className="mb-4"
+                                onChange={(e) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        const reader = new FileReader();
+                                        reader.onload = (event) => {
+                                            gk_isXlsx = true;
+                                            gk_xlsxFileLookup[file.name] = true;
+                                            gk_fileData[file.name] = event.target.result.split(',')[1];
+                                            const csvData = loadFileData(file.name);
+                                            console.log("Loaded CSV:", csvData);
+                                            // Optionally parse csvData to update sampleData
+                                        };
+                                        reader.readAsDataURL(file);
+                                    }
+                                }}
+                                aria-label="Upload Excel file"
+                            />
                             <input
                                 type="text"
                                 placeholder="Search fields..."
                                 className="border rounded p-2 mb-4 w-full"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
+                                aria-label="Search fields"
                             />
                             {Object.entries(fieldCategories).map(([category, fields]) => (
-                                    <div key={category} className="mb-4">
-                                        <details className="bg-white p-2 rounded shadow">
-                                            <summary className="font-semibold cursor-pointer">
-                                                {category} ({filterFields(fields).length})
-                                            </summary>
-                                            <div className="mt-2 flex flex-col gap-2">
-                                                {filterFields(fields).map(field => (
-                                                    <div
-                                                        key={field}
-                                                        draggable="true"
-                                                        onDragStart={(e) => handleDragStart(e, field)}
-                                                        className={`draggable-field ${selectedFields[field] ? 'checked' : ''}`}
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedFields[field] || false}
-                                                            onChange={() => handleCheckboxChange(field)}
-                                                        />
-                                                        {field}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </details>
-                                    </div>
-                                ))}
+                                <div key={category} className="mb-4">
+                                    <details className="bg-white p-2 rounded shadow">
+                                        <summary className="font-semibold cursor-pointer">
+                                            {category} ({filterFields(fields).length})
+                                        </summary>
+                                        <div className="mt-2 flex flex-col gap-2">
+                                            {filterFields(fields).map(field => (
+                                                <div
+                                                    key={field}
+                                                    draggable="true"
+                                                    onDragStart={(e) => handleDragStart(e, field)}
+                                                    onKeyDown={(e) => handleKeyDown(e, field)}
+                                                    tabIndex={0}
+                                                    className={`draggable-field ${selectedFields[field] ? 'checked' : ''}`}
+                                                    role="button"
+                                                    aria-label={`Select ${field}`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedFields[field] || false}
+                                                        onChange={() => handleCheckboxChange(field)}
+                                                        aria-label={`Toggle ${field}`}
+                                                    />
+                                                    {field}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+                                </div>
+                            ))}
                         </div>
                         <div className="w-3/4">
                             <h1 className="text-2xl font-bold mb-4">Dynamic Report Generator</h1>
@@ -973,6 +589,7 @@
                                         <button
                                             className="text-red-500 text-sm"
                                             onClick={() => removeCriteriaField(field)}
+                                            aria-label={`Remove ${fieldConfig[field].label}`}
                                         >
                                             Remove
                                         </button>
@@ -996,6 +613,7 @@
                                             <button
                                                 className="text-red-500 text-sm"
                                                 onClick={() => removeReportField(field)}
+                                                aria-label={`Remove ${fieldConfig[field].label}`}
                                             >
                                                 Remove
                                             </button>
@@ -1020,6 +638,7 @@
                                             <button
                                                 className="text-red-500 text-sm"
                                                 onClick={() => removeGroupByField(field)}
+                                                aria-label={`Remove ${fieldConfig[field].label} from group by`}
                                             >
                                                 Remove
                                             </button>
@@ -1028,17 +647,20 @@
                                 </div>
                             </div>
                             <div className="mb-4">
-                                <label>
+                                <label className="flex items-center">
                                     <input
                                         type="checkbox"
                                         checked={showGroupBy}
                                         onChange={(e) => setShowGroupBy(e.target.checked)}
-                                    /> Show Group By
+                                        aria-label="Show group by fields"
+                                    />
+                                    <span className="ml-2">Show Group By</span>
                                 </label>
                             </div>
                             <button
                                 className="bg-purple-500 text-white px-6 py-2 rounded mb-6"
                                 onClick={generateReport}
+                                aria-label="Generate report"
                             >
                                 Generate Report
                             </button>
@@ -1048,12 +670,14 @@
                                         <button
                                             className="bg-blue-500 text-white px-4 py-2 rounded mr-2"
                                             onClick={exportToExcel}
+                                            aria-label="Export to Excel"
                                         >
                                             Export to Excel
                                         </button>
                                         <button
                                             className="bg-blue-500 text-white px-4 py-2 rounded"
                                             onClick={exportToPDF}
+                                            aria-label="Export to PDF"
                                         >
                                             Export to PDF
                                         </button>
@@ -1069,8 +693,9 @@
                                                         draggable="true"
                                                         onDragStart={(e) => handleHeaderDragStart(e, field)}
                                                         onDragOver={handleHeaderDragOver}
-                                                        onDrop={handleHeaderDrop}
+                                                        onDrop={(e) => handleHeaderDrop(e, field)}
                                                         onDragEnd={handleDragEnd}
+                                                        aria-label={`Column header for ${fieldConfig[field].label}`}
                                                     >
                                                         <div className="header-content">
                                                             <span>{fieldConfig[field].label}</span>
@@ -1081,10 +706,13 @@
                                                                     placeholder="Filter..."
                                                                     value={columnFilters[field] || ''}
                                                                     onChange={(e) => handleColumnFilterChange(field, e.target.value)}
+                                                                    aria-label={`Filter ${fieldConfig[field].label}`}
                                                                 />
                                                                 <span
                                                                     className="sort-icon"
                                                                     onClick={() => handleSort(field)}
+                                                                    role="button"
+                                                                    aria-label={`Sort ${fieldConfig[field].label} ${sortConfig.field === field && sortConfig.direction === 'asc' ? 'descending' : 'ascending'}`}
                                                                 >
                                                                     {sortConfig.field === field ? (
                                                                         sortConfig.direction === 'asc' ? ' ↑' : ' ↓'
@@ -1097,11 +725,11 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {reportData.map((row, index) => (
+                                            {paginatedData.map((row, index) => (
                                                 <tr key={index} className={row.isSubtotal ? 'subtotal-row' : ''}>
                                                     {(reportFields.length > 0 ? reportFields : Object.keys(fieldConfig)).map(field => (
                                                         <td key={field} className="border border-gray-300 p-2">
-                                                            {row[field]}
+                                                            {row[field] !== undefined ? String(row[field]) : ''}
                                                         </td>
                                                     ))}
                                                 </tr>
@@ -1115,6 +743,27 @@
                                             </tr>
                                         </tbody>
                                     </table>
+                                    <div className="flex justify-between mt-4">
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                            disabled={currentPage === 1}
+                                            className="bg-gray-300 px-4 py-2 rounded disabled:opacity-50"
+                                            aria-label="Previous page"
+                                        >
+                                            Previous
+                                        </button>
+                                        <span aria-label={`Current page ${currentPage} of ${Math.ceil(reportData.length / itemsPerPage)}`}>
+                                            Page {currentPage} of {Math.ceil(reportData.length / itemsPerPage)}
+                                        </span>
+                                        <button
+                                            onClick={() => setCurrentPage(prev => prev + 1)}
+                                            disabled={currentPage === Math.ceil(reportData.length / itemsPerPage)}
+                                            className="bg-gray-300 px-4 py-2 rounded disabled:opacity-50"
+                                            aria-label="Next page"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>

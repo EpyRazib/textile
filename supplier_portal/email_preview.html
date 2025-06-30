@@ -1,0 +1,169 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Preview</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .email-header {
+            background-color: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        .email-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+            font-weight: normal;
+        }
+        .email-meta {
+            padding: 10px 20px;
+            border-bottom: 1px solid #ddd;
+            font-size: 14px;
+            color: #333;
+        }
+        .email-meta div {
+            margin-bottom: 5px;
+        }
+        .email-meta label {
+            font-weight: bold;
+            display: inline-block;
+            width: 80px;
+        }
+        .email-body {
+            padding: 20px;
+            font-size: 14px;
+            color: #333;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        .email-body a {
+            color: #007bff;
+            text-decoration: underline;
+        }
+        .email-body a:hover {
+            color: #0056b3;
+        }
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 12px;
+        }
+    .attachment {
+      font-size: 15px;
+      text-decoration: none;
+      color: #333;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+
+    .attachment:hover {
+      color: #007bff;
+    }
+
+    .attachment img {
+      width: 15px;
+      height: 15px;
+    }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="email-header">
+            <h2 id="subject"></h2>
+        </div>
+        <div class="email-meta">
+            <div><label>From:</label> Epyllion Group <no-reply@epylliongroup.com></div>
+            <div><label>To:</label> <span id="to"></span></div>
+            <div><label>Date:</label> <span id="date"></span></div>
+            <div><label>Attachment:</label><a class="attachment" href="https://epyrazib.github.io/Supplier_Portal/F805.pdf" target="_blank">
+    <img src="https://cdn-icons-png.flaticon.com/512/337/337946.png" alt="Attachment Icon">Forwarding</a></div>
+        </div>
+        <div class="email-body" id="body"></div>
+    </div>
+    <footer>© 2025 Supplier Onboarding System</footer>
+
+    <script>
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                to: params.get('to'),
+                subject: params.get('subject'),
+                body: params.get('body')
+            };
+        }
+
+        const { to, subject, body } = getQueryParams();
+        document.getElementById('to').textContent = decodeURIComponent(to || '');
+        document.getElementById('subject').textContent = decodeURIComponent(subject || '');
+
+        const date = new Date().toLocaleString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            hour12: true
+        });
+        document.getElementById('date').textContent = date;
+        document.getElementById('body').innerHTML = decodeURIComponent(body); // Use innerHTML to render tags
+        
+    </script>
+</body>
+</html>

@@ -1,0 +1,543 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pending Suppliers</title>
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 1rem;
+        }
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+        .flex {
+            display: flex;
+        }
+        .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+            margin-left: 1rem;
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        #accepted {
+            background-color: #10b981;
+        }
+        #accepted:hover {
+            background-color: #059669;
+        }
+        #rejected {
+            background-color: #ef4444;
+        }
+        #rejected:hover {
+            background-color: #dc2626;
+        }
+        #allList {
+            background-color: #6b7280;
+        }
+        #allList:hover {
+            background-color: #4b5563;
+        }
+        .hidden {
+            display: none;
+        }
+        .details-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #e5e7eb;
+            padding: 0.5rem;
+        }
+        th {
+            background-color: #e5e7eb;
+        }
+        .bg-white {
+            background-color: white;
+        }
+        .p-4 {
+            padding: 1rem;
+        }
+        .rounded {
+            border-radius: 0.25rem;
+        }
+        .shadow {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+        }
+        .text-xl {
+            font-size: 1.25rem;
+        }
+        .font-bold {
+            font-weight: bold;
+        }
+        .mb-2 {
+            margin-bottom: 0.5rem;
+        }
+        .ml-2 {
+            margin-left: 0.5rem;
+        }
+        .text-blue-500 {
+            color: #3b82f6;
+        }
+        .hover\:text-blue-700:hover {
+            color: #1e40af;
+        }
+        .mt-4 {
+            margin-top: 1rem;
+        }
+        .view-icon {
+            font-size: 1.2rem;
+            color: #3b82f6;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        .view-icon:hover {
+            color: #1e40af;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Heading moved above buttons -->
+        <h2 class="text-xl font-bold mb-4">Supplier Registration Review</h2>
+        
+        <!-- Top Buttons -->
+        <div class="mb-4 flex space-x-4">
+            <button id="yetToReview">Yet to Review</button>
+            <button id="accepted">Accepted</button>
+            <button id="rejected">Rejected</button>
+            <button id="allList">All List</button>
+        </div>
+
+        <!-- Supplier List and Details -->
+        <div id="supplierSection">
+            <table id="supplierTable">
+                <thead>
+                    <tr>
+                        <th class="border p-2">Group Name</th>
+                        <th class="border p-2">Export Business Unit</th>
+                        <th class="border p-2">Contact Email</th>
+                        <th class="border p-2">Contact Phone</th>
+                        <th class="border p-2">Status</th>
+                        <th class="border p-2">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="supplierTableBody">
+                    <!-- Dynamically populated -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="detailsSection" class="hidden mt-4">
+            <h2 class="text-xl font-bold mb-2">Supplier Details</h2>
+            <div class="bg-white p-4 rounded shadow details-container">
+                <h3 class="font-semibold mb-2">Basic Info</h3>
+                <div class="mb-2"><strong>Group Name:</strong> <span id="detailGroupName" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Export Business Unit Name:</strong> <span id="detailUnitName" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Export Business Unit Address:</strong> <span id="detailUnitAddress" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Corporate Office Address:</strong> <span id="detailCorporateAddress" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Websites:</strong> <span id="detailWebsites" class="ml-2"></span></div>
+
+                <h3 class="font-semibold mt-4 mb-2">Factory Info</h3>
+                <div class="mb-2"><strong>Factory 1 - Production Unit:</strong> <span id="detailFactoryProductionUnit1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - Address:</strong> <span id="detailFactoryAddress1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - Establishment Year:</strong> <span id="detailEstablishmentYear1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - Business Commencement Year:</strong> <span id="detailBusinessCommencementYear1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - No. of Workers:</strong> <span id="detailNoOfWorkers1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - No. of Staffs:</strong> <span id="detailNoOfStaffs1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - Machinery Details:</strong> <span id="detailMachineryDetails1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - Daily/Monthly Output:</strong> <span id="detailDailyMonthlyOutput1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - Head of Operation Name:</strong> <span id="detailHeadOpName1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - Head of Operation Designation:</strong> <span id="detailHeadOpDesignation1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - Head of Operation Contact:</strong> <span id="detailHeadOpContact1" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Factory 1 - Head of Operation Email:</strong> <span id="detailHeadOpEmail1" class="ml-2"></span></div>
+
+                <h3 class="font-semibold mt-4 mb-2">Legal Info</h3>
+                <div class="mb-2"><strong>Legal Entity:</strong> <span id="detailLegalEntity" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Country of Incorporation:</strong> <span id="detailCountryIncorporation" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Geographical Location:</strong> <span id="detailGeoLocation" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Registered Address:</strong> <span id="detailRegisteredAddress" class="ml-2"></span></div>
+                <div class="mb-2"><strong>TIN Number/GSTN Number:</strong> <span id="detailTinGstn" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Trade License Number:</strong> <span id="detailTradeLicense" class="ml-2"></span></div>
+                <div class="mb-2"><strong>BIN Number:</strong> <span id="detailBinNumber" class="ml-2"></span></div>
+
+                <h3 class="font-semibold mt-4 mb-2">Agent Info</h3>
+                <div class="mb-2"><strong>Agent Name:</strong> <span id="detailAgentName" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Agent Address:</strong> <span id="detailAgentAddress" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Agent Contact Number:</strong> <span id="detailAgentContact" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Agent Email:</strong> <span id="detailAgentEmail" class="ml-2"></span></div>
+
+                <h3 class="font-semibold mt-4 mb-2">Marketing Concern</h3>
+                <div class="mb-2"><strong>Marketing Name:</strong> <span id="detailMarketingName" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Marketing Designation:</strong> <span id="detailMarketingDesignation" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Marketing Contact Number:</strong> <span id="detailMarketingContact" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Marketing Email:</strong> <span id="detailMarketingEmail" class="ml-2"></span></div>
+
+                <h3 class="font-semibold mt-4 mb-2">Authorized Signatory</h3>
+                <div class="mb-2"><strong>Signatory Name:</strong> <span id="detailSignatoryName" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Signatory Designation:</strong> <span id="detailSignatoryDesignation" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Signatory Contact Number:</strong> <span id="detailSignatoryContact" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Signatory Email:</strong> <span id="detailSignatoryEmail" class="ml-2"></span></div>
+
+                <h3 class="font-semibold mt-4 mb-2">Manufacturing Info</h3>
+                <div class="mb-2"><strong>Product - Fiber Type:</strong> <span id="detailFiberType" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Yarn Type:</strong> <span id="detailYarnType" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Program:</strong> <span id="detailProgram" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Sub-program:</strong> <span id="detailSubProgram" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Certification:</strong> <span id="detailCertification" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Technical Parameter:</strong> <span id="detailTechnicalParameter" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Shade Reference:</strong> <span id="detailShadeReference" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Manufacturing Line:</strong> <span id="detailManufacturingLine" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Manufacturing Process:</strong> <span id="detailManufacturingProcess" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Manufacturing Sub-process:</strong> <span id="detailManufacturingSubProcess" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Color:</strong> <span id="detailColor" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Color Grade:</strong> <span id="detailColorGrade" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Count:</strong> <span id="detailCount" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Yarn Structure:</strong> <span id="detailYarnStructure" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Capacity:</strong> <span id="detailCapacity" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - MOQ:</strong> <span id="detailMoq" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Quality:</strong> <span id="detailQuality" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Natural Fiber Source:</strong> <span id="detailNaturalFiberSource" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Animal Fiber Source:</strong> <span id="detailAnimalFiberSource" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Man Made Fiber Source:</strong> <span id="detailManMadeFiberSource" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Blended Fiber Source:</strong> <span id="detailBlendedFiberSource" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Mélange Fiber Source:</strong> <span id="detailMelangeFiberSource" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Product - Fiber Facility:</strong> <span id="detailFiberFacility" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Lead Time - Manufacturing Lead Time:</strong> <span id="detailManufacturingLeadTime" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Packing - Yarn Net Weight per Cone:</strong> <span id="detailYarnNetWeight" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Packing - Cone per Carton:</strong> <span id="detailConePerCarton" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Packing - Gross Weight per Carton:</strong> <span id="detailGrossWeightCarton" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Certification & Compliance - Sustainability Certifications:</strong> <span id="detailSustainabilityCertifications" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Certification & Compliance - Validity Date:</strong> <span id="detailValidityDate" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Certification & Compliance - Social/Environmental Audits:</strong> <span id="detailSocialEnvironmentalAudits" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Traceability Platform:</strong> <span id="detailTraceabilityPlatform" class="ml-2"></span></div>
+
+                <h3 class="font-semibold mt-4 mb-2">Commercial & Finance</h3>
+                <div class="mb-2"><strong>Commercial Info - Inco Term:</strong> <span id="detailIncoTerm" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Commercial Info - Port of Loading Name:</strong> <span id="detailPortLoading" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Commercial Info - Connecting Port Name:</strong> <span id="detailConnectingPort" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Commercial Info - Preferred Shipping Method:</strong> <span id="detailShippingMethod" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Commercial Info - Container Size:</strong> <span id="detailContainerSize" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Commercial Info - Transshipment:</strong> <span id="detailTransshipment" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Commercial Info - In-Land Transit:</strong> <span id="detailInlandTransit" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Commercial Info - Sea Transit:</strong> <span id="detailSeaTransit" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Bank Name:</strong> <span id="detailBankName" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Account Number:</strong> <span id="detailAccountNumber" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Advising Bank Account No.:</strong> <span id="detailAdvisingBankAccount" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Advising Bank Branch Name:</strong> <span id="detailAdvisingBankBranch" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Advising Bank Account Type:</strong> <span id="detailAdvisingBankAccountType" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Advising Bank Routing Number:</strong> <span id="detailAdvisingBankRouting" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Advising Bank Swift Code:</strong> <span id="detailAdvisingBankSwift" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Negotiating Bank Name:</strong> <span id="detailNegotiatingBankName" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Negotiating Bank Account No.:</strong> <span id="detailNegotiatingBankAccount" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Negotiating Bank Branch Name:</strong> <span id="detailNegotiatingBankBranch" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Negotiating Bank Account Type:</strong> <span id="detailNegotiatingBankAccountType" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Negotiating Bank Routing Number:</strong> <span id="detailNegotiatingBankRouting" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Finance - Negotiating Bank Swift Code:</strong> <span id="detailNegotiatingBankSwift" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Payment Info - Currency:</strong> <span id="detailCurrency" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Payment Info - Payment Terms:</strong> <span id="detailPaymentTerms" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Payment Info - Payment Method:</strong> <span id="detailPaymentMethod" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Payment Info - Declaration:</strong> <span id="detailDeclaration" class="ml-2"></span></div>
+
+                <button id="acceptBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4">Accept</button>
+                <button id="rejectBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 ml-2">Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let suppliers = [
+            {
+                groupName: "Group A", unitName: "Unit A", unitAddress: "Address A", corporateAddress: "Corp A", websites: "www.groupa.com",
+                factoryProductionUnit1: "Unit A1", factoryAddress1: "Factory A1", establishmentYear1: "2020", businessCommencementYear1: "2021",
+                noOfWorkers1: "100", noOfStaffs1: "20", machineryDetails1: "Machinery A1", dailyMonthlyOutput1: "500 units",
+                headOpName1: "John Doe", headOpDesignation1: "Manager", headOpContact1: "123-456-7890", headOpEmail1: "john@groupa.com",
+                legalEntity: "Entity A", countryIncorporation: "Country A", geoLocation: "City A, Country A", registeredAddress: "Reg A",
+                tinGstn: "TIN123", tradeLicense: "TL123", binNumber: "BIN123",
+                agentName: "Agent A", agentAddress: "Agent A Address", agentContact: "098-765-4321", agentEmail: "agent@agenta.com",
+                marketingName: "Marketing A", marketingDesignation: "Marketing Head", marketingContact: "111-222-3333", marketingEmail: "marketing@groupa.com",
+                signatoryName: "Signatory A", signatoryDesignation: "CEO", signatoryContact: "444-555-6666", signatoryEmail: "ceo@groupa.com",
+                fiberType: "Cotton", yarnType: "Single", program: "Program A", subProgram: "Sub A", certification: "Cert A",
+                technicalParameter: "Param A", shadeReference: "Shade A", manufacturingLine: "Line A", manufacturingProcess: "Process A",
+                manufacturingSubProcess: "Sub Process A", color: "Blue", colorGrade: "Grade A", count: "20", yarnStructure: "Structure A",
+                capacity: "1000", moq: "500", quality: "High", naturalFiberSource: "Source A", animalFiberSource: "Source B",
+                manMadeFiberSource: "Source C", blendedFiberSource: "Source D", melangeFiberSource: "Source E", fiberFacility: "Facility A",
+                manufacturingLeadTime: "10 days", yarnNetWeight: "1kg", conePerCarton: "50", grossWeightCarton: "52kg",
+                sustainabilityCertifications: "Cert1", validityDate: "2025-12-31", socialEnvironmentalAudits: "Audit A",
+                traceabilityPlatform: "Platform A", incoTerm: "FOB", portLoading: "Port A", connectingPort: "Port B",
+                shippingMethod: "Sea", containerSize: "20ft", transshipment: "Yes", inlandTransit: "2 days", seaTransit: "15 days",
+                bankName: "Bank A", accountNumber: "ACC123", advisingBankAccount: "ADV123", advisingBankBranch: "Branch A",
+                advisingBankAccountType: "Savings", advisingBankRouting: "ROUT123", advisingBankSwift: "SWIFT123",
+                negotiatingBankName: "Bank B", negotiatingBankAccount: "NEG123", negotiatingBankBranch: "Branch B",
+                negotiatingBankAccountType: "Current", negotiatingBankRouting: "ROUT456", negotiatingBankSwift: "SWIFT456",
+                currency: "USD", paymentTerms: "30 days", paymentMethod: "Bank Transfer", declaration: "Agreed", status: "Pending"
+            },
+            {
+                groupName: "Group B", unitName: "Unit B", unitAddress: "Address B", corporateAddress: "Corp B", websites: "www.groupb.com",
+                factoryProductionUnit1: "Unit B1", factoryAddress1: "Factory B1", establishmentYear1: "2021", businessCommencementYear1: "2022",
+                noOfWorkers1: "150", noOfStaffs1: "30", machineryDetails1: "Machinery B1", dailyMonthlyOutput1: "700 units",
+                headOpName1: "Jane Doe", headOpDesignation1: "Supervisor", headOpContact1: "098-765-4321", headOpEmail1: "jane@groupb.com",
+                legalEntity: "Entity B", countryIncorporation: "Country B", geoLocation: "City B, Country B", registeredAddress: "Reg B",
+                tinGstn: "TIN456", tradeLicense: "TL456", binNumber: "BIN456",
+                agentName: "Agent B", agentAddress: "Agent B Address", agentContact: "555-666-7777", agentEmail: "agent@agentb.com",
+                marketingName: "Marketing B", marketingDesignation: "Marketing Lead", marketingContact: "888-999-0000", marketingEmail: "marketing@groupb.com",
+                signatoryName: "Signatory B", signatoryDesignation: "Director", signatoryContact: "333-444-5555", signatoryEmail: "director@groupb.com",
+                fiberType: "Polyester", yarnType: "Double", program: "Program B", subProgram: "Sub B", certification: "Cert B",
+                technicalParameter: "Param B", shadeReference: "Shade B", manufacturingLine: "Line B", manufacturingProcess: "Process B",
+                manufacturingSubProcess: "Sub Process B", color: "Red", colorGrade: "Grade B", count: "30", yarnStructure: "Structure B",
+                capacity: "1500", moq: "700", quality: "Premium", naturalFiberSource: "Source F", animalFiberSource: "Source G",
+                manMadeFiberSource: "Source H", blendedFiberSource: "Source I", melangeFiberSource: "Source J", fiberFacility: "Facility B",
+                manufacturingLeadTime: "12 days", yarnNetWeight: "1.5kg", conePerCarton: "60", grossWeightCarton: "63kg",
+                sustainabilityCertifications: "Cert2", validityDate: "2026-01-01", socialEnvironmentalAudits: "Audit B",
+                traceabilityPlatform: "Platform B", incoTerm: "CIF", portLoading: "Port C", connectingPort: "Port D",
+                shippingMethod: "Air", containerSize: "40ft", transshipment: "No", inlandTransit: "3 days", seaTransit: "20 days",
+                bankName: "Bank C", accountNumber: "ACC456", advisingBankAccount: "ADV456", advisingBankBranch: "Branch C",
+                advisingBankAccountType: "Current", advisingBankRouting: "ROUT789", advisingBankSwift: "SWIFT789",
+                negotiatingBankName: "Bank D", negotiatingBankAccount: "NEG456", negotiatingBankBranch: "Branch D",
+                negotiatingBankAccountType: "Savings", negotiatingBankRouting: "ROUT101", negotiatingBankSwift: "SWIFT101",
+                currency: "EUR", paymentTerms: "45 days", paymentMethod: "LC", declaration: "Agreed", status: "Pending"
+            }
+        ];
+        let currentIndex = -1;
+        let acceptedSuppliers = [];
+        let rejectedSuppliers = [];
+
+        // Default to Yet to Review
+        document.getElementById('yetToReview').classList.add('bg-blue-600');
+        updateTable(suppliers);
+
+        document.getElementById('yetToReview').addEventListener('click', () => {
+            document.getElementById('supplierSection').classList.remove('hidden');
+            document.getElementById('detailsSection').classList.add('hidden');
+            updateTable(suppliers);
+            resetButtonStyles();
+            document.getElementById('yetToReview').classList.add('bg-blue-600');
+        });
+
+        document.getElementById('accepted').addEventListener('click', () => {
+            document.getElementById('supplierSection').classList.remove('hidden');
+            document.getElementById('detailsSection').classList.add('hidden');
+            updateTable(acceptedSuppliers);
+            resetButtonStyles();
+            document.getElementById('accepted').classList.add('bg-green-600');
+        });
+
+        document.getElementById('rejected').addEventListener('click', () => {
+            document.getElementById('supplierSection').classList.remove('hidden');
+            document.getElementById('detailsSection').classList.add('hidden');
+            updateTable(rejectedSuppliers);
+            resetButtonStyles();
+            document.getElementById('rejected').classList.add('bg-red-600');
+        });
+
+        document.getElementById('allList').addEventListener('click', () => {
+            document.getElementById('supplierSection').classList.remove('hidden');
+            document.getElementById('detailsSection').classList.add('hidden');
+            const allSuppliers = [...suppliers, ...acceptedSuppliers, ...rejectedSuppliers];
+            updateTable(allSuppliers);
+            resetButtonStyles();
+            document.getElementById('allList').classList.add('bg-gray-600');
+        });
+
+        function updateTable(list = suppliers) {
+            const tbody = document.getElementById('supplierTableBody');
+            tbody.innerHTML = '';
+            list.forEach((supplier, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td class="border p-2">${supplier.groupName}</td><td class="border p-2">${supplier.unitName}</td><td class="border p-2">${supplier.headOpEmail1}</td><td class="border p-2">${supplier.headOpContact1}</td><td class="border p-2">${supplier.status}</td><td class="border p-2"><i onclick="viewSupplier(${index}, ${list === suppliers ? 'suppliers' : list === acceptedSuppliers ? 'acceptedSuppliers' : 'rejectedSuppliers'})" class="fas fa-eye view-icon"></i></td>`;
+                tbody.appendChild(row);
+            });
+        }
+
+        function viewSupplier(index, listName) {
+            let supplierList = eval(listName);
+            currentIndex = index;
+            const supplier = supplierList[index];
+            document.getElementById('detailGroupName').textContent = supplier.groupName;
+            document.getElementById('detailUnitName').textContent = supplier.unitName;
+            document.getElementById('detailUnitAddress').textContent = supplier.unitAddress;
+            document.getElementById('detailCorporateAddress').textContent = supplier.corporateAddress;
+            document.getElementById('detailWebsites').textContent = supplier.websites;
+            document.getElementById('detailFactoryProductionUnit1').textContent = supplier.factoryProductionUnit1;
+            document.getElementById('detailFactoryAddress1').textContent = supplier.factoryAddress1;
+            document.getElementById('detailEstablishmentYear1').textContent = supplier.establishmentYear1;
+            document.getElementById('detailBusinessCommencementYear1').textContent = supplier.businessCommencementYear1;
+            document.getElementById('detailNoOfWorkers1').textContent = supplier.noOfWorkers1;
+            document.getElementById('detailNoOfStaffs1').textContent = supplier.noOfStaffs1;
+            document.getElementById('detailMachineryDetails1').textContent = supplier.machineryDetails1;
+            document.getElementById('detailDailyMonthlyOutput1').textContent = supplier.dailyMonthlyOutput1;
+            document.getElementById('detailHeadOpName1').textContent = supplier.headOpName1;
+            document.getElementById('detailHeadOpDesignation1').textContent = supplier.headOpDesignation1;
+            document.getElementById('detailHeadOpContact1').textContent = supplier.headOpContact1;
+            document.getElementById('detailHeadOpEmail1').textContent = supplier.headOpEmail1;
+            document.getElementById('detailLegalEntity').textContent = supplier.legalEntity;
+            document.getElementById('detailCountryIncorporation').textContent = supplier.countryIncorporation;
+            document.getElementById('detailGeoLocation').textContent = supplier.geoLocation;
+            document.getElementById('detailRegisteredAddress').textContent = supplier.registeredAddress;
+            document.getElementById('detailTinGstn').textContent = supplier.tinGstn;
+            document.getElementById('detailTradeLicense').textContent = supplier.tradeLicense;
+            document.getElementById('detailBinNumber').textContent = supplier.binNumber;
+            document.getElementById('detailAgentName').textContent = supplier.agentName;
+            document.getElementById('detailAgentAddress').textContent = supplier.agentAddress;
+            document.getElementById('detailAgentContact').textContent = supplier.agentContact;
+            document.getElementById('detailAgentEmail').textContent = supplier.agentEmail;
+            document.getElementById('detailMarketingName').textContent = supplier.marketingName;
+            document.getElementById('detailMarketingDesignation').textContent = supplier.marketingDesignation;
+            document.getElementById('detailMarketingContact').textContent = supplier.marketingContact;
+            document.getElementById('detailMarketingEmail').textContent = supplier.marketingEmail;
+            document.getElementById('detailSignatoryName').textContent = supplier.signatoryName;
+            document.getElementById('detailSignatoryDesignation').textContent = supplier.signatoryDesignation;
+            document.getElementById('detailSignatoryContact').textContent = supplier.signatoryContact;
+            document.getElementById('detailSignatoryEmail').textContent = supplier.signatoryEmail;
+            document.getElementById('detailFiberType').textContent = supplier.fiberType;
+            document.getElementById('detailYarnType').textContent = supplier.yarnType;
+            document.getElementById('detailProgram').textContent = supplier.program;
+            document.getElementById('detailSubProgram').textContent = supplier.subProgram;
+            document.getElementById('detailCertification').textContent = supplier.certification;
+            document.getElementById('detailTechnicalParameter').textContent = supplier.technicalParameter;
+            document.getElementById('detailShadeReference').textContent = supplier.shadeReference;
+            document.getElementById('detailManufacturingLine').textContent = supplier.manufacturingLine;
+            document.getElementById('detailManufacturingProcess').textContent = supplier.manufacturingProcess;
+            document.getElementById('detailManufacturingSubProcess').textContent = supplier.manufacturingSubProcess;
+            document.getElementById('detailColor').textContent = supplier.color;
+            document.getElementById('detailColorGrade').textContent = supplier.colorGrade;
+            document.getElementById('detailCount').textContent = supplier.count;
+            document.getElementById('detailYarnStructure').textContent = supplier.yarnStructure;
+            document.getElementById('detailCapacity').textContent = supplier.capacity;
+            document.getElementById('detailMoq').textContent = supplier.moq;
+            document.getElementById('detailQuality').textContent = supplier.quality;
+            document.getElementById('detailNaturalFiberSource').textContent = supplier.naturalFiberSource;
+            document.getElementById('detailAnimalFiberSource').textContent = supplier.animalFiberSource;
+            document.getElementById('detailManMadeFiberSource').textContent = supplier.manMadeFiberSource;
+            document.getElementById('detailBlendedFiberSource').textContent = supplier.blendedFiberSource;
+            document.getElementById('detailMelangeFiberSource').textContent = supplier.melangeFiberSource;
+            document.getElementById('detailFiberFacility').textContent = supplier.fiberFacility;
+            document.getElementById('detailManufacturingLeadTime').textContent = supplier.manufacturingLeadTime;
+            document.getElementById('detailYarnNetWeight').textContent = supplier.yarnNetWeight;
+            document.getElementById('detailConePerCarton').textContent = supplier.conePerCarton;
+            document.getElementById('detailGrossWeightCarton').textContent = supplier.grossWeightCarton;
+            document.getElementById('detailSustainabilityCertifications').textContent = supplier.sustainabilityCertifications;
+            document.getElementById('detailValidityDate').textContent = supplier.validityDate;
+            document.getElementById('detailSocialEnvironmentalAudits').textContent = supplier.socialEnvironmentalAudits;
+            document.getElementById('detailTraceabilityPlatform').textContent = supplier.traceabilityPlatform;
+            document.getElementById('detailIncoTerm').textContent = supplier.incoTerm;
+            document.getElementById('detailPortLoading').textContent = supplier.portLoading;
+            document.getElementById('detailConnectingPort').textContent = supplier.connectingPort;
+            document.getElementById('detailShippingMethod').textContent = supplier.shippingMethod;
+            document.getElementById('detailContainerSize').textContent = supplier.containerSize;
+            document.getElementById('detailTransshipment').textContent = supplier.transshipment;
+            document.getElementById('detailInlandTransit').textContent = supplier.inlandTransit;
+            document.getElementById('detailSeaTransit').textContent = supplier.seaTransit;
+            document.getElementById('detailBankName').textContent = supplier.bankName;
+            document.getElementById('detailAccountNumber').textContent = supplier.accountNumber;
+            document.getElementById('detailAdvisingBankAccount').textContent = supplier.advisingBankAccount;
+            document.getElementById('detailAdvisingBankBranch').textContent = supplier.advisingBankBranch;
+            document.getElementById('detailAdvisingBankAccountType').textContent = supplier.advisingBankAccountType;
+            document.getElementById('detailAdvisingBankRouting').textContent = supplier.advisingBankRouting;
+            document.getElementById('detailAdvisingBankSwift').textContent = supplier.advisingBankSwift;
+            document.getElementById('detailNegotiatingBankName').textContent = supplier.negotiatingBankName;
+            document.getElementById('detailNegotiatingBankAccount').textContent = supplier.negotiatingBankAccount;
+            document.getElementById('detailNegotiatingBankBranch').textContent = supplier.negotiatingBankBranch;
+            document.getElementById('detailNegotiatingBankAccountType').textContent = supplier.negotiatingBankAccountType;
+            document.getElementById('detailNegotiatingBankRouting').textContent = supplier.negotiatingBankRouting;
+            document.getElementById('detailNegotiatingBankSwift').textContent = supplier.negotiatingBankSwift;
+            document.getElementById('detailCurrency').textContent = supplier.currency;
+            document.getElementById('detailPaymentTerms').textContent = supplier.paymentTerms;
+            document.getElementById('detailPaymentMethod').textContent = supplier.paymentMethod;
+            document.getElementById('detailDeclaration').textContent = supplier.declaration;
+            document.getElementById('supplierSection').classList.add('hidden');
+            document.getElementById('detailsSection').classList.remove('hidden');
+        }
+
+        document.getElementById('acceptBtn').addEventListener('click', () => {
+            if (currentIndex >= 0) {
+                const supplier = suppliers.splice(currentIndex, 1)[0];
+                supplier.status = "Accepted";
+                acceptedSuppliers.push(supplier);
+                alert(`Accepted ${supplier.groupName}.`);
+                document.getElementById('detailsSection').classList.add('hidden');
+                document.getElementById('supplierSection').classList.remove('hidden');
+                updateTable(suppliers);
+            }
+        });
+
+        document.getElementById('rejectBtn').addEventListener('click', () => {
+            if (currentIndex >= 0) {
+                const supplier = suppliers.splice(currentIndex, 1)[0];
+                supplier.status = "Rejected";
+                rejectedSuppliers.push(supplier);
+                alert(`Rejected ${supplier.groupName}.`);
+                document.getElementById('detailsSection').classList.add('hidden');
+                document.getElementById('supplierSection').classList.remove('hidden');
+                updateTable(suppliers);
+            }
+        });
+
+        function resetButtonStyles() {
+            document.getElementById('yetToReview').classList.remove('bg-blue-600');
+            document.getElementById('accepted').classList.remove('bg-green-600');
+            document.getElementById('rejected').classList.remove('bg-red-600');
+            document.getElementById('allList').classList.remove('bg-gray-600');
+        }
+    </script>
+</body>
+</html>

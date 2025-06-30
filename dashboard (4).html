@@ -1,0 +1,541 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Textile Operations Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            min-height: 600px; /* Ensure enough space for dragging */
+        }
+        .card {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+            cursor: move; /* Indicate draggable */
+            position: relative;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 0;
+            font-size: 1.2rem;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            padding: 10px 0;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .status {
+            font-weight: bold;
+            color: #27ae60;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .table th, .table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .table th {
+            background-color: #3498db;
+            color: white;
+        }
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        [draggable] {
+            user-select: none;
+        }
+        .drag-over {
+            border: 2px dashed #3498db;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Textile Operations Dashboard</h1>
+        <div class="dashboard-grid" id="dashboardGrid">
+            <!-- Fabric Booking -->
+            <div class="card" draggable="true" data-id="booking">
+                <h2>Fabric Booking</h2>
+                <ul id="bookingList">
+                    <li>Booking ID: BK001 - 500m Fabric - <span class="status">Pending</span></li>
+                    <li>Booking ID: BK002 - 300m Fabric - <span class="status">In Progress</span></li>
+                    <li>Booking ID: BK003 - 700m Fabric - <span class="status">Pending</span></li>
+                </ul>
+                <button class="btn" onclick="addBooking()">Add New Booking</button>
+                <div class="chart-container">
+                    <canvas id="bookingChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Raw Material Requirements -->
+            <div class="card" draggable="true" data-id="rawMaterial">
+                <h2>Raw Material Requirements</h2>
+                <ul id="rawMaterialList">
+                    <li>BK001: 200kg Yarn, 50L Chemicals</li>
+                    <li>BK002: 120kg Yarn, 30L Chemicals</li>
+                    <li>BK003: 300kg Yarn, 70L Chemicals</li>
+                </ul>
+                <button class="btn" onclick="generateRequirements()">Generate Requirements</button>
+            </div>
+
+            <!-- Yarn Purchase and Allocation -->
+            <div class="card" draggable="true" data-id="yarn">
+                <h2>Yarn Purchase & Allocation</h2>
+                <table class="table">
+                    <tr>
+                        <th>Booking ID</th>
+                        <th>Yarn (kg)</th>
+                        <th>Status</th>
+                    </tr>
+                    <tr>
+                        <td>BK001</td>
+                        <td>200kg</td>
+                        <td><span class="status">Allocated</span></td>
+                    </tr>
+                    <tr>
+                        <td>BK002</td>
+                        <td>120kg</td>
+                        <td><span class="status">Purchased</span></td>
+                    </tr>
+                    <tr>
+                        <td>BK003</td>
+                        <td>300kg</td>
+                        <td><span class="status">Pending</span></td>
+                    </tr>
+                </table>
+                <button class="btn" onclick="allocateYarn()">Allocate Yarn</button>
+                <div class="chart-container">
+                    <canvas id="yarnChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Fabric Manufacturing -->
+            <div class="card" draggable="true" data-id="manufacturing">
+                <h2>Fabric Manufacturing</h2>
+                <ul id="manufacturingList">
+                    <li>BK001: Knitting - 50%, Dyeing - 30%, Finishing - 20%</li>
+                    <li>BK002: Knitting - 70%, Dyeing - 40%, Finishing - 10%</li>
+                    <li>BK003: Knitting - 20%, Dyeing - 0%, Finishing - 0%</li>
+                </ul>
+                <button class="btn" onclick="updateManufacturing()">Update Progress</button>
+                <div class="chart-container">
+                    <canvas id="manufacturingChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Fabric Delivery -->
+            <div class="card" draggable="true" data-id="delivery">
+                <h2>Booking-wise Fabric Delivery</h2>
+                <table class="table">
+                    <tr>
+                        <th>Booking ID</th>
+                        <th>Delivered (m)</th>
+                        <th>Status</th>
+                    </tr>
+                    <tr>
+                        <td>BK001</td>
+                        <td>400m</td>
+                        <td><span class="status">Delivered</span></td>
+                    </tr>
+                    <tr>
+                        <td>BK002</td>
+                        <td>0m</td>
+                        <td><span class="status">Pending</span></td>
+                    </tr>
+                    <tr>
+                        <td>BK003</td>
+                        <td>0m</td>
+                        <td><span class="status">Pending</span></td>
+                    </tr>
+                </table>
+                <button class="btn" onclick="recordDelivery()">Record Delivery</button>
+                <div class="chart-container">
+                    <canvas id="deliveryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Drag and Drop Logic
+        const grid = document.getElementById('dashboardGrid');
+        let draggedItem = null;
+
+        grid.addEventListener('dragstart', (e) => {
+            draggedItem = e.target;
+            e.target.style.opacity = '0.5';
+        });
+
+        grid.addEventListener('dragend', (e) => {
+            e.target.style.opacity = '';
+            draggedItem = null;
+            saveLayout();
+        });
+
+        grid.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        grid.addEventListener('dragenter', (e) => {
+            if (e.target.classList.contains('card') && e.target !== draggedItem) {
+                e.target.classList.add('drag-over');
+            }
+        });
+
+        grid.addEventListener('dragleave', (e) => {
+            if (e.target.classList.contains('card')) {
+                e.target.classList.remove('drag-over');
+            }
+        });
+
+        grid.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (e.target.classList.contains('card') && draggedItem) {
+                e.target.classList.remove('drag-over');
+                const children = Array.from(grid.children);
+                const draggedIndex = children.indexOf(draggedItem);
+                const targetIndex = children.indexOf(e.target);
+                if (draggedIndex !== targetIndex) {
+                    if (draggedIndex < targetIndex) {
+                        e.target.parentNode.insertBefore(draggedItem, e.target.nextSibling);
+                    } else {
+                        e.target.parentNode.insertBefore(draggedItem, e.target);
+                    }
+                    saveLayout();
+                }
+            }
+        });
+
+        function saveLayout() {
+            const layout = Array.from(grid.children).map(card => card.getAttribute('data-id'));
+            localStorage.setItem('dashboardLayout', JSON.stringify(layout));
+        }
+
+        function loadLayout() {
+            const savedLayout = JSON.parse(localStorage.getItem('dashboardLayout'));
+            if (savedLayout) {
+                const cards = Array.from(grid.children);
+                savedLayout.forEach(id => {
+                    const card = cards.find(c => c.getAttribute('data-id') === id);
+                    if (card) grid.appendChild(card);
+                });
+            }
+        }
+
+        // Load layout on page load
+        window.addEventListener('load', loadLayout);
+
+        // Charts
+        const bookingCtx = document.getElementById('bookingChart').getContext('2d');
+        const bookingChart = new Chart(bookingCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Pending', 'In Progress'],
+                datasets: [{
+                    data: [2, 1],
+                    backgroundColor: ['#ff6384', '#36a2eb']
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Booking Status'
+                    }
+                }
+            }
+        });
+
+        const yarnCtx = document.getElementById('yarnChart').getContext('2d');
+        const yarnChart = new Chart(yarnCtx, {
+            type: 'bar',
+            data: {
+                labels: ['BK001', 'BK002', 'BK003'],
+                datasets: [{
+                    label: 'Yarn Allocated (kg)',
+                    data: [200, 120, 0],
+                    backgroundColor: '#ffce56'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Yarn Allocation Progress'
+                    }
+                }
+            }
+        });
+
+        const manufacturingCtx = document.getElementById('manufacturingChart').getContext('2d');
+        const manufacturingChart = new Chart(manufacturingCtx, {
+            type: 'line',
+            data: {
+                labels: ['BK001', 'BK002', 'BK003'],
+                datasets: [{
+                    label: 'Knitting (%)',
+                    data: [50, 70, 20],
+                    borderColor: '#ff6384',
+                    fill: false
+                }, {
+                    label: 'Dyeing (%)',
+                    data: [30, 40, 0],
+                    borderColor: '#36a2eb',
+                    fill: false
+                }, {
+                    label: 'Finishing (%)',
+                    data: [20, 10, 0],
+                    borderColor: '#ffcd56',
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Manufacturing Progress'
+                    }
+                }
+            }
+        });
+
+        const deliveryCtx = document.getElementById('deliveryChart').getContext('2d');
+        const deliveryChart = new Chart(deliveryCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Delivered', 'Pending'],
+                datasets: [{
+                    data: [1, 2],
+                    backgroundColor: ['#27ae60', '#e74c3c']
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Delivery Status'
+                    }
+                }
+            }
+        });
+
+        function addBooking() {
+            const bookingId = prompt("Enter Booking ID (e.g., BK004):");
+            const quantity = prompt("Enter Fabric Quantity (e.g., 400m):");
+            if (bookingId && quantity) {
+                const list = document.getElementById('bookingList');
+                const li = document.createElement('li');
+                li.textContent = `Booking ID: ${bookingId} - ${quantity} - <span class="status">Pending</span>`;
+                list.appendChild(li);
+                updateBookingChart();
+            }
+        }
+
+        function generateRequirements() {
+            const bookings = document.getElementById('bookingList').getElementsByTagName('li');
+            const list = document.getElementById('rawMaterialList');
+            list.innerHTML = '';
+            for (let booking of bookings) {
+                const id = booking.textContent.split(' - ')[0].replace('Booking ID: ', '');
+                const qty = booking.textContent.split(' - ')[1];
+                const yarn = Math.floor(parseInt(qty) / 2.5) + 'kg Yarn';
+                const chemicals = Math.floor(parseInt(qty) / 10) + 'L Chemicals';
+                const li = document.createElement('li');
+                li.textContent = `${id}: ${yarn}, ${chemicals}`;
+                list.appendChild(li);
+            }
+        }
+
+        function allocateYarn() {
+            const table = document.querySelector('.table');
+            const rows = table.getElementsByTagName('tr');
+            for (let i = 1; i < rows.length; i++) {
+                const statusCell = rows[i].cells[2];
+                if (statusCell.textContent.includes('Pending')) {
+                    statusCell.innerHTML = '<span class="status">Allocated</span>';
+                }
+            }
+            updateYarnChart();
+        }
+
+        function updateManufacturing() {
+            const list = document.getElementById('manufacturingList');
+            const items = list.getElementsByTagName('li');
+            for (let item of items) {
+                let [id, progress] = item.textContent.split(': ');
+                let [knitting, dyeing, finishing] = progress.split(', ');
+                let k = parseInt(knitting.split('- ')[1]);
+                let d = parseInt(dyeing.split('- ')[1]);
+                let f = parseInt(finishing.split('- ')[1]);
+                if (k < 100) k += 10;
+                if (d < 100 && k === 100) d += 10;
+                if (f < 100 && d === 100) f += 10;
+                item.textContent = `${id}: Knitting - ${k}%, Dyeing - ${d}%, Finishing - ${f}%`;
+            }
+            updateManufacturingChart();
+        }
+
+        function recordDelivery() {
+            const table = document.querySelectorAll('.table')[1];
+            const rows = table.getElementsByTagName('tr');
+            for (let i = 1; i < rows.length; i++) {
+                const statusCell = rows[i].cells[2];
+                if (statusCell.textContent.includes('Pending')) {
+                    const qtyCell = rows[i].cells[1];
+                    const qty = parseInt(qtyCell.textContent);
+                    if (qty > 0) {
+                        statusCell.innerHTML = '<span class="status">Delivered</span>';
+                    }
+                }
+            }
+            updateDeliveryChart();
+        }
+
+        function updateBookingChart() {
+            const pending = document.getElementById('bookingList').getElementsByClassName('status').length;
+            const inProgress = pending > 0 ? 1 : 0;
+            bookingChart.data.datasets[0].data = [pending, inProgress];
+            bookingChart.update();
+        }
+
+        function updateYarnChart() {
+            const table = document.querySelector('.table');
+            const rows = table.getElementsByTagName('tr');
+            const data = [0, 0, 0];
+            for (let i = 1; i < rows.length; i++) {
+                const id = rows[i].cells[0].textContent;
+                const qty = parseInt(rows[i].cells[1].textContent);
+                if (id === 'BK001') data[0] = qty;
+                else if (id === 'BK002') data[1] = qty;
+                else if (id === 'BK003') data[2] = qty;
+            }
+            yarnChart.data.datasets[0].data = data;
+            yarnChart.update();
+        }
+
+        function updateManufacturingChart() {
+            const list = document.getElementById('manufacturingList');
+            const items = list.getElementsByTagName('li');
+            const knittingData = [], dyeingData = [], finishingData = [];
+            for (let item of items) {
+                let [id, progress] = item.textContent.split(': ');
+                let [knitting, dyeing, finishing] = progress.split(', ');
+                knittingData.push(parseInt(knitting.split('- ')[1]));
+                dyeingData.push(parseInt(dyeing.split('- ')[1]));
+                finishingData.push(parseInt(finishing.split('- ')[1]));
+            }
+            manufacturingChart.data.datasets[0].data = knittingData;
+            manufacturingChart.data.datasets[1].data = dyeingData;
+            manufacturingChart.data.datasets[2].data = finishingData;
+            manufacturingChart.update();
+        }
+
+        function updateDeliveryChart() {
+            const table = document.querySelectorAll('.table')[1];
+            const rows = table.getElementsByTagName('tr');
+            let delivered = 0, pending = 0;
+            for (let i = 1; i < rows.length; i++) {
+                if (rows[i].cells[2].textContent.includes('Delivered')) delivered++;
+                else pending++;
+            }
+            deliveryChart.data.datasets[0].data = [delivered, pending];
+            deliveryChart.update();
+        }
+    </script>
+</body>
+</html>

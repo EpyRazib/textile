@@ -1,0 +1,289 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supplier Registration and Onboarding Initiation</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ddd;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        select, input[type="email"],input[type="text"], button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #additionalFields, #emailField, #supplierField {
+            display: none;
+        }
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Supplier Registration and Onboarding Initiation</h1>
+        <div class="form-group">
+            <label for="supplierType">Supplier Type *</label>
+            <select id="supplierType" required>
+                <option value="">Select Supplier Type</option>
+                <option value="Existing">Existing</option>
+                <option value="New">New</option>
+            </select>
+        </div>
+        <div id="additionalFields">
+            <div class="form-group">
+                <label for="infoProvider">Registrant *</label>
+                <select id="infoProvider" required>
+                    <option value="">Select Registrant</option>
+                    <option value="Supplier Self">Supplier Self</option>
+                    <option value="Agent">Agent</option>
+                    <option value="SCD">SCD</option>
+                </select>
+            </div>
+            <div id="nameEmailFields" style="display: none;">
+                <div class="form-group">
+                    <label id="nameLabel" for="name">Name *</label>
+                    <select id="name" required>
+                        <option value="">Select Name</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="contactEmail">Contact Email *</label>
+                    <select id="contactEmail" required>
+                        <option value="">Select Email</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div id="supplierField" class="form-group">
+            <label for="newSupplierField">Supplier Name *</label>
+            <input type="text" id="newSupplierField" placeholder="Enter supplier name" required>
+        </div>
+        <div id="emailField" class="form-group">
+            <label for="newContactEmail">Contact Email *</label>
+            <input type="email" id="newContactEmail" placeholder="Enter contact email" required>
+        </div>
+        <button id="sendEmail">Send Email</button>
+    </div>
+    <footer>© 2025 Supplier Onboarding System</footer>
+
+    <script>
+        const supplierData = {
+            "Supplier Self": [
+                { name: "Supplier A", email: "supplierA@example.com" },
+                { name: "Supplier B", email: "supplierB@example.com" }
+            ],
+            "Agent": [
+                { name: "Agent X", email: "agentX@example.com" },
+                { name: "Agent Y", email: "agentY@example.com" }
+            ],
+            "SCD": [
+                { name: "SCD 1", email: "scd1@example.com" },
+                { name: "SCD 2", email: "scd2@example.com" }
+            ]
+        };
+
+        const supplierType = document.getElementById('supplierType');
+        const infoProvider = document.getElementById('infoProvider');
+        const additionalFields = document.getElementById('additionalFields');
+        const nameEmailFields = document.getElementById('nameEmailFields');
+        const nameSelect = document.getElementById('name');
+        const contactEmail = document.getElementById('contactEmail');
+        const nameLabel = document.getElementById('nameLabel');
+        const emailField = document.getElementById('emailField');
+        const supplierField = document.getElementById('supplierField');
+        const newContactEmail = document.getElementById('newContactEmail');
+        const newSupplierField = document.getElementById('newSupplierField');
+        const sendEmailButton = document.getElementById('sendEmail');
+        
+
+        supplierType.addEventListener('change', function() {
+            if (this.value === 'Existing') {
+                additionalFields.style.display = 'block';
+                emailField.style.display = 'none';
+                supplierField.style.display = 'none';
+                newContactEmail.value = '';
+                newSupplierField.value = '';
+                sendEmailButton.innerText="Send Email"
+            } else if (this.value === 'New') {
+                additionalFields.style.display = 'none';
+                emailField.style.display = 'block';
+                supplierField.style.display = 'block';
+                nameEmailFields.style.display = 'none';
+                infoProvider.value = '';
+                nameSelect.innerHTML = '<option value="">Select Name</option>';
+                contactEmail.innerHTML = '<option value="">Select Email</option>';
+                sendEmailButton.innerText="Save and Send Email"
+            } else {
+                additionalFields.style.display = 'none';
+                emailField.style.display = 'none';
+                supplierField.style.display = 'none';
+                nameEmailFields.style.display = 'none';
+            }
+        });
+
+        infoProvider.addEventListener('change', function() {
+            if (this.value) {
+                nameEmailFields.style.display = 'block';
+                nameLabel.textContent = this.value === 'Agent' ? 'Agent Name *' : 'Supplier Name *';
+                nameSelect.innerHTML = '<option value="">Select Name</option>';
+                contactEmail.innerHTML = '<option value="">Select Email</option>';
+                const data = supplierData[this.value] || [];
+                data.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.name;
+                    option.textContent = item.name;
+                    nameSelect.appendChild(option);
+                });
+            } else {
+                nameEmailFields.style.display = 'none';
+            }
+        });
+
+        nameSelect.addEventListener('change', function() {
+            const provider = infoProvider.value;
+            contactEmail.innerHTML = '<option value="">Select Email</option>';
+            if (this.value && provider) {
+                const data = supplierData[provider].find(item => item.name === this.value);
+                if (data) {
+                    const option = document.createElement('option');
+                    option.value = data.email;
+                    option.textContent = data.email;
+                    contactEmail.appendChild(option);
+                    contactEmail.value = data.email;
+                }
+            }
+        });
+
+        sendEmailButton.addEventListener('click', function() {
+            let emailVal, supplierTypeVal = supplierType.value;
+            if (supplierTypeVal === 'Existing') {
+                const infoProviderVal = infoProvider.value;
+                const nameVal = nameSelect.value;
+                emailVal = contactEmail.value;
+                if (!supplierTypeVal || !infoProviderVal || !nameVal || !emailVal) {
+                    alert('Please fill in all required fields.');
+                    return;
+                }
+            } else if (supplierTypeVal === 'New') {
+                emailVal = newContactEmail.value;
+                supplierVal=newSupplierField.value;
+                if (!supplierTypeVal || !emailVal || !supplierVal) {
+                    alert('Please fill in all required fields.');
+                    return;
+                }
+            } else {
+                alert('Please select a supplier type.');
+                return;
+            }
+
+            const formLink = 'https://epyrazib.github.io/Supplier_Portal/supplier_form.html'; // Replace with actual URL
+            const emailBody = `<p>Dear Sir,<br>
+            Greetings from Epyllion Group. We hope this message finds you well.</p>
+            <p>We are reaching out to formally request your registration and enlistment as an approved supplier. These registrations are sought for potential collaboration with the following companies under Epyllion Group:</p>
+            <ol>
+                <li>Epyllion Fabrics Ltd.</li>
+                <li>Epyllion Knitex Ltd.</li>
+                <li>Epyllion Style Ltd.</li>
+            </ol>
+            <p>As part of our procurement and compliance procedures, we kindly request you to complete the Supplier Registration & Onboarding Form and return to us on or before <strong>June 19, 2025</strong>. Please click the below link and fill the all information.</p>
+            <p><a href="https://epyrazib.github.io/Supplier_Portal/supplier_form.html" target="_blank">Click here to open the supplier form</a><br><br></p>
+            <p>We look forward to building a mutually beneficial professional relationship and exploring future opportunities together.</p>
+            <p>Thank you for your attention and cooperation.</p>
+            <br><br>
+            <p>Warm regards,</p>
+            <p><strong>Mr. G.M. Salah Uddin</strong><br>
+            Assistant General Manager<br>
+            Supply Chain Department</p>`;
+            const subject = 'Supplier Registration/Onboarding Information';
+            const encodedSubject = encodeURIComponent(subject);
+            const encodedBody = encodeURIComponent(emailBody);
+            window.location.href = `email_preview.html?to=${encodeURIComponent(emailVal)}&subject=${encodedSubject}&body=${encodedBody}`;
+        });
+    </script>
+</body>
+</html>

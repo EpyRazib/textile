@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Purchase Order Interface</title>
+  <!-- Including Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Including React and dependencies via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <!-- Including Babel Standalone for in-browser JSX transformation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+</head>
+<body class="bg-gray-100">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // Defining the main App component
+    function App() {
+      // Sample data for default and dynamic tables
+      const defaultTableData = [
+        { supplier: "Supplier ABC", noOfCS: 10, noOfItem: 5, totalRequiredQty: 1000 },
+        { supplier: "Supplier XYZ", noOfCS: 8, noOfItem: 3, totalRequiredQty: 800 },
+      ];
+
+      const dynamicTableDataInitial = [
+        { id: 1, select: false, supplier: "Supplier ABC", ewoProjectionNo: "EWO123", yarnDescription: "Cotton 20/1", rfqNo: "RFQ001", price: 2.5 },
+        { id: 2, select: false, supplier: "Supplier XYZ", ewoProjectionNo: "EWO124", yarnDescription: "Polyester 30/1", rfqNo: "RFQ002", price: 3.0 },
+        { id: 3, select: false, supplier: "Supplier ABC", ewoProjectionNo: "EWO125", yarnDescription: "Cotton 30/1", rfqNo: "RFQ003", price: 2.7 },
+      ];
+
+      // State to manage active tab, table view, popup visibility, selected fields, field order, table data, PO data, instructions, and submit data
+      const [activeTab, setActiveTab] = React.useState("Available for PO");
+      const [activeTable, setActiveTable] = React.useState("Default Table");
+      const [showFieldSelection, setShowFieldSelection] = React.useState(false);
+      const [selectedFields, setSelectedFields] = React.useState({
+        supplier: false,
+        ewoProjectionNo: false,
+        yarnDescription: false,
+        rfqNo: false,
+        price: false,
+      });
+      const [fieldOrder, setFieldOrder] = React.useState([]);
+      const [dynamicTableData, setDynamicTableData] = React.useState(dynamicTableDataInitial);
+      const [poData, setPoData] = React.useState([]);
+      const [instructions, setInstructions] = React.useState("Please review before final submission");
+      const [submitData, setSubmitData] = React.useState({
+        paymentTerms: "",
+        deliveryDate: "",
+        shippingMethod: "",
+        termsConditions: "",
+        additionalNotes: "",
+      });
+
+      // Available fields for selection
+      const availableFields = [
+        { key: "supplier", label: "Supplier" },
+        { key: "ewoProjectionNo", label: "EWO/Projection No" },
+        { key: "yarnDescription", label: "Yarn Description" },
+        { key: "rfqNo", label: "RFQ No." },
+        { key: "price", label: "Price" },
+      ];
+
+      // Handle field selection change
+      const handleFieldChange = (field) => {
+        setSelectedFields((prev) => {
+          const newSelected = { ...prev, [field]: !prev[field] };
+          setFieldOrder((prevOrder) => {
+            if (newSelected[field]) {
+              return [...prevOrder, availableFields.find((f) => f.key === field)];
+            } else {
+              return prevOrder.filter((f) => f.key !== field);
+            }
+          });
+          return newSelected;
+        });
+      };
+
+      // Handle row selection in Dynamic Table with supplier validation
+      const handleRowSelection = (id) => {
+        setDynamicTableData((prevData) => {
+          const clickedRow = prevData.find((row) => row.id === id);
+          const clickedSupplier = clickedRow.supplier;
+          const selectedRows = prevData.filter((row) => row.select && row.id !== id);
+          const hasDifferentSupplier = selectedRows.some((row) => row.supplier !== clickedSupplier);
+
+          if (hasDifferentSupplier && !clickedRow.select) {
+            alert("You can not select multiple supplier at a time");
+            return prevData;
+          }
+
+          return prevData.map((row) => ({
+            ...row,
+            select: row.id === id ? !row.select : row.select,
+          }));
+        });
+      };
+
+      // Handle Generate button to apply field selection and hide popup
+      const handleGenerateTable = () => {
+        setShowFieldSelection(false);
+      };
+
+      // Handle Dynamic Table button click
+      const handleDynamicTableClick = () => {
+        setActiveTable("Dynamic Table");
+        setShowFieldSelection(true);
+      };
+
+      // Handle Next button to generate PO table
+      const handleNextClick = () => {
+        const selectedRows = dynamicTableData.filter((row) => row.select);
+        if (selectedRows.length === 0) {
+          alert("Please select at least one row to create a Purchase Order");
+          return;
+        }
+        setPoData(selectedRows);
+        setActiveTab("Draft PO List(s)");
+      };
+
+      // Handle Next button in PO draft view
+      const handleNextPOClick = () => {
+        if (poData.length > 0) {
+          setActiveTab("Submit PO");
+        }
+      };
+
+      // Handle Submit button in final view
+      const handleSubmitPO = () => {
+        alert("Purchase Order submitted with data: " + JSON.stringify({ poData, instructions, submitData }, null, 2));
+      };
+
+      // Handle changes in submit data fields
+      const handleSubmitDataChange = (field, value) => {
+        setSubmitData((prev) => ({ ...prev, [field]: value }));
+      };
+
+      // Rendering the main interface
+      return (
+        <div className="container mx-auto p-6">
+          <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
+            Purchase Order Generation
+          </h1>
+
+          {/* Tabs for different lists */}
+          <div className="mb-8">
+            <div className="flex space-x-2 border-b border-gray-300">
+              {["Available for PO", "Draft PO List(s)", "Submit PO"].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-6 py-2 font-medium text-gray-700 rounded-t-lg transition-all duration-200 ${
+                    activeTab === tab
+                      ? "bg-white border-b-2 border-blue-500 text-blue-600"
+                      : "bg-gray-200 hover:bg-gray-300 hover:text-blue-500"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Content for Available for PO tab */}
+          {activeTab === "Available for PO" && (
+            <div>
+              {/* Table selection buttons */}
+              <div className="flex space-x-4 mb-6">
+                <button
+                  onClick={() => setActiveTable("Default Table")}
+                  className={`px-6 py-2 font-medium rounded-lg shadow-sm transition-all duration-200 ${
+                    activeTable === "Default Table"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-blue-100 hover:text-blue-600"
+                  }`}
+                >
+                  Default Table
+                </button>
+                <button
+                  onClick={handleDynamicTableClick}
+                  className={`px-6 py-2 font-medium rounded-lg shadow-sm transition-all duration-200 ${
+                    activeTable === "Dynamic Table"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-blue-100 hover:text-blue-600"
+                  }`}
+                >
+                  Dynamic Table
+                </button>
+              </div>
+
+              {/* Field Selection Popup */}
+              {activeTable === "Dynamic Table" && showFieldSelection && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+                    <h2 className="text-xl font-semibold mb-4 text-gray-700">Select Fields for Dynamic Table</h2>
+                    <div className="mb-4">
+                      <h3 className="text-lg font-medium mb-2 text-gray-700">Fields</h3>
+                      <div className="space-y-2">
+                        {availableFields.map((field) => (
+                          <label key={field.key} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedFields[field.key]}
+                              onChange={() => handleFieldChange(field.key)}
+                              className="accent-blue-500"
+                            />
+                            <span className="text-gray-700">{field.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end space-x-4">
+                      <button
+                        onClick={() => setShowFieldSelection(false)}
+                        className="bg-gray-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-gray-600 transition-all duration-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleGenerateTable}
+                        className="bg-blue-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-all duration-200"
+                      >
+                        Generate
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Default Table */}
+              {activeTable === "Default Table" && (
+                <div className="mb-8">
+                  <h2 className="text-xl font-semibold mb-4 text-gray-700">Default Table</h2>
+                  <table className="w-full border-collapse bg-white shadow-md rounded-lg">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                        <th className="border border-gray-300 p-3 text-left">Supplier</th>
+                        <th className="border border-gray-300 p-3 text-left">No of CS</th>
+                        <th className="border border-gray-300 p-3 text-left">No of Item</th>
+                        <th className="border border-gray-300 p-3 text-left">Total Required Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {defaultTableData.map((row, index) => (
+                        <tr key={index} className="hover:bg-gray-50 transition-colors duration-200">
+                          <td className="border border-gray-200 p-3">{row.supplier}</td>
+                          <td className="border border-gray-200 p-3">{row.noOfCS}</td>
+                          <td className="border border-gray-200 p-3">{row.noOfItem}</td>
+                          <td className="border border-gray-200 p-3">{row.totalRequiredQty}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Dynamic Table */}
+              {activeTable === "Dynamic Table" && !showFieldSelection && (
+                <div className="mb-8">
+                  <h2 className="text-xl font-semibold mb-4 text-gray-700">Dynamic Table</h2>
+                  <table className="w-full border-collapse bg-white shadow-md rounded-lg">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                        <th className="border border-gray-300 p-3 text-left">Select</th>
+                        {fieldOrder.length > 0 ? (
+                          fieldOrder.map((field) => (
+                            <th key={field.key} className="border border-gray-300 p-3 text-left">
+                              {field.label}
+                            </th>
+                          ))
+                        ) : (
+                          availableFields.map((field) => (
+                            <th key={field.key} className="border border-gray-300 p-3 text-left">
+                              {field.label}
+                            </th>
+                          ))
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dynamicTableData.map((row) => (
+                        <tr key={row.id} className="hover:bg-gray-50 transition-colors duration-200">
+                          <td className="border border-gray-200 p-3">
+                            <input
+                              type="checkbox"
+                              checked={row.select}
+                              onChange={() => handleRowSelection(row.id)}
+                              className="accent-blue-500"
+                            />
+                          </td>
+                          {fieldOrder.length > 0 ? (
+                            fieldOrder.map((field) => (
+                              <td key={field.key} className="border border-gray-200 p-3">
+                                {row[field.key] || ""}
+                              </td>
+                            ))
+                          ) : (
+                            availableFields.map((field) => (
+                              <td key={field.key} className="border border-gray-200 p-3">
+                                {row[field.key] || ""}
+                              </td>
+                            ))
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="mt-4 flex justify-end space-x-4">
+                    <button
+                      onClick={() => setShowFieldSelection(true)}
+                      className="bg-gray-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-gray-600 transition-all duration-200"
+                    >
+                      Edit Fields
+                    </button>
+                    <button
+                      onClick={handleNextClick}
+                      className="bg-blue-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-all duration-200"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Content for Draft PO List(s) tab */}
+          {activeTab === "Draft PO List(s)" && (
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold mb-4 text-gray-700">Purchase Order Draft</h2>
+
+              {/* General Information Section */}
+              <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+                <h3 className="text-lg font-medium mb-4 text-gray-700">General Information</h3>
+                {poData.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-gray-600">Supplier Name: {poData[0].supplier}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Company: Company XYZ</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">PO Date: 07/07/2025 12:24 PM +06</p>
+                    </div>
+                    <div>
+                      <label className="block text-gray-700">Instructions:</label>
+                      <textarea
+                        value={instructions}
+                        onChange={(e) => setInstructions(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md"
+                        rows="3"
+                        placeholder="Enter instructions..."
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-700">No data selected for Purchase Order.</p>
+                )}
+              </div>
+
+              {/* Item Information Section */}
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="text-lg font-medium mb-4 text-gray-700">Item Information</h3>
+                {poData.length > 0 ? (
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                        <th className="border border-gray-300 p-3 text-left">Yarn Description</th>
+                        <th className="border border-gray-300 p-3 text-left">YR No.</th>
+                        <th className="border border-gray-300 p-3 text-left">RFQ No.</th>
+                        <th className="border border-gray-300 p-3 text-left">H.S. Code</th>
+                        <th className="border border-gray-300 p-3 text-left">Country of Origin</th>
+                        <th className="border border-gray-300 p-3 text-left">UOM</th>
+                        <th className="border border-gray-300 p-3 text-left">Required Qty.</th>
+                        <th className="border border-gray-300 p-3 text-left">Price</th>
+                        <th className="border border-gray-300 p-3 text-left">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {poData.map((row) => (
+                        <tr key={row.id} className="hover:bg-gray-50 transition-colors duration-200">
+                          <td className="border border-gray-200 p-3">{row.yarnDescription}</td>
+                          <td className="border border-gray-200 p-3">{row.ewoProjectionNo}</td>
+                          <td className="border border-gray-200 p-3">{row.rfqNo}</td>
+                          <td className="border border-gray-200 p-3">1234-56</td>
+                          <td className="border border-gray-200 p-3">China</td>
+                          <td className="border border-gray-200 p-3">kg</td>
+                          <td className="border border-gray-200 p-3">100</td>
+                          <td className="border border-gray-200 p-3">{row.price}</td>
+                          <td className="border border-gray-200 p-3">{(row.price * 100).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-gray-200">
+                        <td colSpan="8" className="border border-gray-300 p-3 text-right font-semibold">Total</td>
+                        <td className="border border-gray-300 p-3 font-semibold">
+                          {poData.reduce((sum, row) => sum + (row.price * 100), 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-gray-700">No data selected for Purchase Order.</p>
+                )}
+                <div className="mt-4 flex justify-end space-x-4">
+                  <button
+                    onClick={() => setActiveTab("Available for PO")}
+                    className="bg-gray-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-gray-600 transition-all duration-200"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleNextPOClick}
+                    className="bg-blue-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-all duration-200"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Content for Submit PO tab */}
+          {activeTab === "Submit PO" && (
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold mb-4 text-gray-700">Purchase Order Submission</h2>
+
+              {/* General Section */}
+              <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+                <h3 className="text-lg font-medium mb-4 text-gray-700">General</h3>
+                {poData.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-gray-600">PO No.: PO-2025-002</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">PO Date: 07/07/2025 12:24 PM +06</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Supplier Name: {poData[0].supplier}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Company Name: Company XYZ</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Instructions: {instructions}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-700">No data selected for Purchase Order.</p>
+                )}
+              </div>
+
+              {/* Item Information Section */}
+              <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+                <h3 className="text-lg font-medium mb-4 text-gray-700">Item Information</h3>
+                {poData.length > 0 ? (
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                        <th className="border border-gray-300 p-3 text-left">Yarn Description</th>
+                        <th className="border border-gray-300 p-3 text-left">YR No.</th>
+                        <th className="border border-gray-300 p-3 text-left">RFQ No.</th>
+                        <th className="border border-gray-300 p-3 text-left">H.S. Code</th>
+                        <th className="border border-gray-300 p-3 text-left">Country of Origin</th>
+                        <th className="border border-gray-300 p-3 text-left">UOM</th>
+                        <th className="border border-gray-300 p-3 text-left">Required Qty.</th>
+                        <th className="border border-gray-300 p-3 text-left">Price</th>
+                        <th className="border border-gray-300 p-3 text-left">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {poData.map((row) => (
+                        <tr key={row.id} className="hover:bg-gray-50 transition-colors duration-200">
+                          <td className="border border-gray-200 p-3">{row.yarnDescription}</td>
+                          <td className="border border-gray-200 p-3">{row.ewoProjectionNo}</td>
+                          <td className="border border-gray-200 p-3">{row.rfqNo}</td>
+                          <td className="border border-gray-200 p-3">1234-56</td>
+                          <td className="border border-gray-200 p-3">China</td>
+                          <td className="border border-gray-200 p-3">kg</td>
+                          <td className="border border-gray-200 p-3">100</td>
+                          <td className="border border-gray-200 p-3">{row.price}</td>
+                          <td className="border border-gray-200 p-3">{(row.price * 100).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-gray-200">
+                        <td colSpan="8" className="border border-gray-300 p-3 text-right font-semibold">Total</td>
+                        <td className="border border-gray-300 p-3 font-semibold">
+                          {poData.reduce((sum, row) => sum + (row.price * 100), 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-gray-700">No data selected for Purchase Order.</p>
+                )}
+              </div>
+
+              {/* Additional Fields Section */}
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="text-lg font-medium mb-4 text-gray-700">Additional Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-700">Payment Terms:</label>
+                    <input
+                      type="text"
+                      value={submitData.paymentTerms}
+                      onChange={(e) => handleSubmitDataChange("paymentTerms", e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      placeholder="e.g., 30 days"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700">Delivery Date:</label>
+                    <input
+                      type="text"
+                      value={submitData.deliveryDate}
+                      onChange={(e) => handleSubmitDataChange("deliveryDate", e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      placeholder="e.g., 2025-07-15"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700">Shipping Method:</label>
+                    <input
+                      type="text"
+                      value={submitData.shippingMethod}
+                      onChange={(e) => handleSubmitDataChange("shippingMethod", e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      placeholder="e.g., Air Freight"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-gray-700">Terms and Conditions:</label>
+                    <textarea
+                      value={submitData.termsConditions}
+                      onChange={(e) => handleSubmitDataChange("termsConditions", e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      rows="3"
+                      placeholder="Enter terms and conditions..."
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-gray-700">Additional Notes:</label>
+                    <textarea
+                      value={submitData.additionalNotes}
+                      onChange={(e) => handleSubmitDataChange("additionalNotes", e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      rows="3"
+                      placeholder="Enter additional notes..."
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end space-x-4">
+                  <button
+                    onClick={() => setActiveTab("Draft PO List(s)")}
+                    className="bg-gray-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-gray-600 transition-all duration-200"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleSubmitPO}
+                    className="bg-blue-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-all duration-200"
+                  >
+                    Submit
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Rendering the App component to the DOM with error handling
+    try {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    } catch (error) {
+      console.error("Rendering error:", error);
+    }
+  </script>
+</body>
+</html>

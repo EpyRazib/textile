@@ -55,11 +55,9 @@
         incoterms: "",
         deliveryDate: "",
         shippingMethod: "",
-        termsConditions: "",
-        additionalNotes: "",
       });
-      const [currentView, setCurrentView] = React.useState("table"); // table, poDraft, additionalDetails
-      const [editingDraftId, setEditingDraftId] = React.useState(null); // Track draft being edited
+      const [currentView, setCurrentView] = React.useState("table"); // table, poDraft, additionalDetails, preview, viewSubmitted
+      const [editingDraftId, setEditingDraftId] = React.useState(null);
 
       // Available fields for selection
       const availableFields = [
@@ -69,6 +67,21 @@
         { key: "rfqNo", label: "RFQ No." },
         { key: "price", label: "Price" },
       ];
+
+      // Get current date in YYYY-MM-DD format for min attribute
+      const today = new Date().toISOString().split("T")[0];
+
+      // Calculate Last Shipment Date (2 days after Delivery Date)
+      const getLastShipmentDate = (deliveryDate) => {
+        if (!deliveryDate) return "27 March 2025"; // Fallback
+        const date = new Date(deliveryDate);
+        date.setDate(date.getDate() + 2);
+        return date.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+      };
 
       // Handle field selection change
       const handleFieldChange = (field) => {
@@ -136,9 +149,18 @@
         }
       };
 
-      // Handle Back button in PO draft or additional details view
+      // Handle Next button in Additional Details view
+      const handleNextAdditionalDetails = () => {
+        if (poData.length > 0) {
+          setCurrentView("preview");
+        }
+      };
+
+      // Handle Back button in PO draft, additional details, or preview view
       const handleBackClick = () => {
-        if (currentView === "additionalDetails") {
+        if (currentView === "preview") {
+          setCurrentView("additionalDetails");
+        } else if (currentView === "additionalDetails") {
           setCurrentView("poDraft");
         } else if (currentView === "poDraft") {
           setCurrentView("table");
@@ -150,7 +172,6 @@
       const handleSaveAsDraft = () => {
         if (poData.length > 0) {
           if (editingDraftId) {
-            // Update existing draft
             setDraftPOs((prev) =>
               prev.map((draft) =>
                 draft.id === editingDraftId
@@ -160,7 +181,6 @@
             );
             alert("Draft Purchase Order updated!");
           } else {
-            // Save new draft
             setDraftPOs((prev) => [
               ...prev,
               { id: Date.now(), poData, instructions, submitData }
@@ -176,8 +196,6 @@
             incoterms: "",
             deliveryDate: "",
             shippingMethod: "",
-            termsConditions: "",
-            additionalNotes: "",
           });
           setInstructions("Please review before final submission");
           setEditingDraftId(null);
@@ -193,7 +211,6 @@
             { id: Date.now(), poData, instructions, submitData }
           ]);
           if (editingDraftId) {
-            // Remove from drafts if it was a draft
             setDraftPOs((prev) => prev.filter((draft) => draft.id !== editingDraftId));
           }
           alert("Purchase Order sent for approval!");
@@ -206,8 +223,6 @@
             incoterms: "",
             deliveryDate: "",
             shippingMethod: "",
-            termsConditions: "",
-            additionalNotes: "",
           });
           setInstructions("Please review before final submission");
           setEditingDraftId(null);
@@ -228,6 +243,83 @@
       // Handle changes in submit data fields
       const handleSubmitDataChange = (field, value) => {
         setSubmitData((prev) => ({ ...prev, [field]: value }));
+      };
+
+      // Component for rendering fixed fields
+      const FixedFields = ({ submitData }) => {
+        const deliveryDateFormatted = submitData.deliveryDate
+          ? new Date(submitData.deliveryDate).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "25-Mar-2025";
+        const lastShipmentDate = getLastShipmentDate(submitData.deliveryDate);
+
+        return (
+          <div className="mt-6 space-y-4">
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Yarn Quality Approval Procedure:</h4>
+              <p className="text-gray-600">
+                Supplier must provide PP sample & and shall obtain approval from Epyllion prior bulk shipment. Bulk yarn quality &
+                lot reference shall be same as approved PP sample. Also all other given technical specifications shall be strictly
+                maintained & ensured for bulk yarn. In case of any quality issues, the supplier shall be settled claims for the full
+                quantity.
+              </p>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Shipment Schedule:</h4>
+              <p className="text-gray-600">
+                The listed product/goods shall be ship on-boarded on or before {deliveryDateFormatted}
+              </p>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Transactional Terms of Reference (TOR):</h4>
+              <ul className="list-disc list-inside text-gray-600">
+                <li><strong>Technical Report:</strong> The supplier must provide USTER report for bulk delivery along with draft shipping documents.</li>
+                <li><strong>Certifications:</strong> All required certifications must be submitted in accordance with Epyllion’s specifications.</li>
+                <li><strong>Traceability Documents:</strong> Complete traceability documentation for both fiber and yarn must be provided along with the draft shipping documents. (1. PO/Sales Contract, 2. Commercial Invoice, 3. Packing List, 4. BL, 5. CO, 6. Payment Copy, 7. Affidavit of country of declaration.)</li>
+                <li><strong>Packing:</strong> Packaging must be compliant with standard practices to ensure safe transportation, withstand multiple handling stages, and support extended storage.</li>
+                <li><strong>Shipping Documents:</strong> Supplier will provide the necessary shipping documents with terms & conditions as per LC instruction within 5 days after shipment (ETD).</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Financial & Commercial Terms of Reference (TOR):</h4>
+              <ul className="list-disc list-inside text-gray-600">
+                <li><strong>Payment Terms:</strong> {submitData.paymentTerms || "Letter of Credit (LC)"}</li>
+                {submitData.paymentTerms === "LC" && (
+                  <li><strong>Retirement Mode:</strong> {submitData.retirementMode || "Deferred"}</li>
+                )}
+                {submitData.paymentTerms === "LC" && submitData.retirementMode === "Deferred" && (
+                  <li><strong>Tenure:</strong> {submitData.tenure || "120 Days"}</li>
+                )}
+                <li><strong>Incoterms:</strong> {submitData.incoterms || "CFR"}</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Additional Commercial Details:</h4>
+              <ul className="list-disc list-inside text-gray-600">
+                <li><strong>Tolerance:</strong> 0.00%</li>
+                <li><strong>Yarn Country of Origin:</strong> Indonesia</li>
+                <li><strong>Port Of Shipment:</strong> Port of Tanjung Priok, Jakarta, Indonesia</li>
+                <li><strong>Port Of Destination:</strong> Chattogram Port, Bangladesh</li>
+                <li><strong>Container Type:</strong> 40FT HQ</li>
+                <li><strong>Mode of Shipment:</strong> {submitData.shippingMethod || "By SEA"}</li>
+                <li><strong>PO Validity:</strong> 3 days from the date of issuance</li>
+                <li><strong>Late Shipment:</strong> Epyllion reserves the right to cancel the order in case of delayed delivery.</li>
+                <li><strong>Partial Shipment:</strong> Not Allowed</li>
+                <li><strong>Last Shipment Date:</strong> {lastShipmentDate}</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Declaration:</h4>
+              <p className="text-gray-600">
+                Please review all information in this Purchase Order carefully. Your acknowledgment will be considered as confirmation of
+                your acceptance and agreement to all the terms and conditions specified herein.
+              </p>
+            </div>
+          </div>
+        );
       };
 
       // Rendering the main interface
@@ -670,42 +762,26 @@
                       <div>
                         <label className="block text-gray-700">Delivery Date:</label>
                         <input
-                          type="text"
+                          type="date"
                           value={submitData.deliveryDate}
                           onChange={(e) => handleSubmitDataChange("deliveryDate", e.target.value)}
+                          min={today}
                           className="w-full p-2 border border-gray-300 rounded-md"
-                          placeholder="e.g., 2025-07-15"
                         />
                       </div>
                       <div>
                         <label className="block text-gray-700">Shipping Method:</label>
-                        <input
-                          type="text"
+                        <select
                           value={submitData.shippingMethod}
                           onChange={(e) => handleSubmitDataChange("shippingMethod", e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded-md"
-                          placeholder="e.g., Air Freight"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-gray-700">Terms and Conditions:</label>
-                        <textarea
-                          value={submitData.termsConditions}
-                          onChange={(e) => handleSubmitDataChange("termsConditions", e.target.value)}
-                          className="w-full p-2 border border-gray-300 rounded-md"
-                          rows="3"
-                          placeholder="Enter terms and conditions..."
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-gray-700">Additional Notes:</label>
-                        <textarea
-                          value={submitData.additionalNotes}
-                          onChange={(e) => handleSubmitDataChange("additionalNotes", e.target.value)}
-                          className="w-full p-2 border border-gray-300 rounded-md"
-                          rows="3"
-                          placeholder="Enter additional notes..."
-                        />
+                        >
+                          <option value="" disabled>Select Shipping Method</option>
+                          <option value="Sea">Sea</option>
+                          <option value="Air">Air</option>
+                          <option value="Sea-Air">Sea-Air</option>
+                          <option value="By Road">By Road</option>
+                        </select>
                       </div>
                     </div>
                     <div className="mt-4 flex justify-end space-x-4">
@@ -714,6 +790,101 @@
                         className="bg-gray-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-gray-600 transition-all duration-200"
                       >
                         Back
+                      </button>
+                      <button
+                        onClick={handleNextAdditionalDetails}
+                        className="bg-blue-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-all duration-200"
+                      >
+                        Preview
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Section */}
+              {currentView === "preview" && (
+                <div className="mb-8">
+                  <h2 className="text-xl font-semibold mb-4 text-gray-700">Purchase Order Preview</h2>
+
+                  {/* General Section */}
+                  <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+                    <h3 className="text-lg font-medium mb-4 text-gray-700">General</h3>
+                    {poData.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-gray-600">PO No.: PO-2025-002</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">PO Date: 07/07/2025 12:24 PM +06</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Supplier Name: {poData[0].supplier}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Company Name: Company XYZ</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Instructions: {instructions}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-gray-700">No data selected for Purchase Order.</p>
+                    )}
+                  </div>
+
+                  {/* Item Information Section */}
+                  <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+                    <h3 className="text-lg font-medium mb-4 text-gray-700">Item Information</h3>
+                    {poData.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                              <th className="border border-gray-300 p-3 text-left">Yarn Description</th>
+                              <th className="border border-gray-300 p-3 text-left">YR No.</th>
+                              <th className="border border-gray-300 p-3 text-left">RFQ No.</th>
+                              <th className="border border-gray-300 p-3 text-left">H.S. Code</th>
+                              <th className="border border-gray-300 p-3 text-left">Country of Origin</th>
+                              <th className="border border-gray-300 p-3 text-left">UOM</th>
+                              <th className="border border-gray-300 p-3 text-left">Required Qty.</th>
+                              <th className="border border-gray-300 p-3 text-left">Price</th>
+                              <th className="border border-gray-300 p-3 text-left">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {poData.map((row) => (
+                              <tr key={row.id} className="hover:bg-gray-50 transition-colors duration-200">
+                                <td className="border border-gray-200 p-3">{row.yarnDescription}</td>
+                                <td className="border border-gray-200 p-3">{row.ewoProjectionNo}</td>
+                                <td className="border border-gray-200 p-3">{row.rfqNo}</td>
+                                <td className="border border-gray-200 p-3">1234-56</td>
+                                <td className="border border-gray-200 p-3">China</td>
+                                <td className="border border-gray-200 p-3">kg</td>
+                                <td className="border border-gray-200 p-3">100</td>
+                                <td className="border border-gray-200 p-3">{row.price}</td>
+                                <td className="border border-gray-200 p-3">{(row.price * 100).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                            <tr className="bg-gray-200">
+                              <td colSpan="8" className="border border-gray-300 p-3 text-right font-semibold">Total</td>
+                              <td className="border border-gray-300 p-3 font-semibold">
+                                {poData.reduce((sum, row) => sum + (row.price * 100), 0).toFixed(2)}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-gray-700">No data selected for Purchase Order.</p>
+                    )}
+                    <FixedFields submitData={submitData} />
+                    <div className="mt-4 flex justify-end space-x-4">
+                      <button
+                        onClick={handleBackClick}
+                        className="bg-gray-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-gray-600 transition-all duration-200"
+                      >
+                        Back to Edit
                       </button>
                       <button
                         onClick={handleSaveAsDraft}
@@ -902,6 +1073,7 @@
                     ) : (
                       <p className="text-gray-700">No data selected for Purchase Order.</p>
                     )}
+                    <FixedFields submitData={submitData} />
                   </div>
 
                   {/* Additional Details Section (Read-Only) */}
@@ -923,18 +1095,12 @@
                       )}
                       <div>
                         <p className="text-gray-600">Incoterms: {submitData.incoterms}</p>
-                      </div>
+                        </div>
                       <div>
                         <p className="text-gray-600">Delivery Date: {submitData.deliveryDate}</p>
                       </div>
                       <div>
                         <p className="text-gray-600">Shipping Method: {submitData.shippingMethod}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-gray-600">Terms and Conditions: {submitData.termsConditions}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-gray-600">Additional Notes: {submitData.additionalNotes}</p>
                       </div>
                     </div>
                     <div className="mt-4 flex justify-end">

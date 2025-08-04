@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Purchase Order Approval</title>
+  <!-- Including Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Including React and dependencies via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <!-- Including Babel Standalone for in-browser JSX transformation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+</head>
+<body class="bg-gray-100">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // Defining the main App component
+    function App() {
+      // Sample initial PO data (compatible with previous interface)
+      const initialPOs = [
+        {
+          id: 1,
+          status: "Waiting",
+          poData: [
+            { id: 1, supplier: "Supplier ABC", ewoProjectionNo: "EWO123", yarnDescription: "Cotton 20/1", rfqNo: "RFQ001", price: 2.5 },
+            { id: 2, supplier: "Supplier ABC", ewoProjectionNo: "EWO125", yarnDescription: "Cotton 30/1", rfqNo: "RFQ003", price: 2.7 },
+          ],
+          instructions: "Please review before final submission",
+          submitData: {
+            paymentTerms: "LC",
+            retirementMode: "Deferred",
+            tenure: "120 Days",
+            incoterms: "CFR",
+            deliveryDate: "2025-03-25",
+            shippingMethod: "Sea",
+          },
+        },
+        {
+          id: 2,
+          status: "Waiting",
+          poData: [
+            { id: 3, supplier: "Supplier XYZ", ewoProjectionNo: "EWO124", yarnDescription: "Polyester 30/1", rfqNo: "RFQ002", price: 3.0 },
+          ],
+          instructions: "Ensure quality compliance",
+          submitData: {
+            paymentTerms: "TT",
+            retirementMode: "",
+            tenure: "",
+            incoterms: "FOB",
+            deliveryDate: "2025-04-01",
+            shippingMethod: "Air",
+          },
+        },
+      ];
+
+      // State to manage active tab, POs, and current view
+      const [activeTab, setActiveTab] = React.useState("Waiting for Approval");
+      const [pos, setPOs] = React.useState(initialPOs);
+      const [selectedPO, setSelectedPO] = React.useState(null);
+      const [currentView, setCurrentView] = React.useState("table"); // table or viewPO
+
+      // Calculate Last Shipment Date (2 days after Delivery Date)
+      const getLastShipmentDate = (deliveryDate) => {
+        if (!deliveryDate) return "27 March 2025"; // Fallback
+        const date = new Date(deliveryDate);
+        date.setDate(date.getDate() + 2);
+        return date.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+      };
+
+      // Handle Approve button
+      const handleApprove = (poId) => {
+        setPOs((prev) =>
+          prev.map((po) =>
+            po.id === poId ? { ...po, status: "Approved" } : po
+          )
+        );
+        setCurrentView("table");
+        setSelectedPO(null);
+        setActiveTab("Approved PO");
+        alert("Purchase Order approved!");
+      };
+
+      // Handle Reject button
+      const handleReject = (poId) => {
+        setPOs((prev) =>
+          prev.map((po) =>
+            po.id === poId ? { ...po, status: "Rejected" } : po
+          )
+        );
+        setCurrentView("table");
+        setSelectedPO(null);
+        setActiveTab("Reject PO");
+        alert("Purchase Order rejected!");
+      };
+
+      // Handle View button
+      const handleViewPO = (po) => {
+        setSelectedPO(po);
+        setCurrentView("viewPO");
+      };
+
+      // Component for rendering fixed fields
+      const FixedFields = ({ submitData }) => {
+        const deliveryDateFormatted = submitData.deliveryDate
+          ? new Date(submitData.deliveryDate).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "25 Mar 2025";
+        const lastShipmentDate = getLastShipmentDate(submitData.deliveryDate);
+
+        return (
+          <div className="mt-6 space-y-4">
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Yarn Quality Approval Procedure:</h4>
+              <p className="text-gray-600">
+                Supplier must provide PP sample & and shall obtain approval from Epyllion prior bulk shipment. Bulk yarn quality &
+                lot reference shall be same as approved PP sample. Also all other given technical specifications shall be strictly
+                maintained & ensured for bulk yarn. In case of any quality issues, the supplier shall be settled claims for the full
+                quantity.
+              </p>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Shipment Schedule:</h4>
+              <p className="text-gray-600">
+                The listed product/goods shall be ship on-boarded on or before {deliveryDateFormatted}
+              </p>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Transactional Terms of Reference (TOR):</h4>
+              <ul className="list-disc list-inside text-gray-600">
+                <li><strong>Technical Report:</strong> The supplier must provide USTER report for bulk delivery along with draft shipping documents.</li>
+                <li><strong>Certifications:</strong> All required certifications must be submitted in accordance with Epyllion’s specifications.</li>
+                <li><strong>Traceability Documents:</strong> Complete traceability documentation for both fiber and yarn must be provided along with the draft shipping documents. (1. PO/Sales Contract, 2. Commercial Invoice, 3. Packing List, 4. BL, 5. CO, 6. Payment Copy, 7. Affidavit of country of declaration.)</li>
+                <li><strong>Packing:</strong> Packaging must be compliant with standard practices to ensure safe transportation, withstand multiple handling stages, and support extended storage.</li>
+                <li><strong>Shipping Documents:</strong> Supplier will provide the necessary shipping documents with terms & conditions as per LC instruction within 5 days after shipment (ETD).</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Financial & Commercial Terms of Reference (TOR):</h4>
+              <ul className="list-disc list-inside text-gray-600">
+                <li><strong>Payment Terms:</strong> {submitData.paymentTerms || "Letter of Credit (LC)"}</li>
+                {submitData.paymentTerms === "LC" && (
+                  <li><strong>Retirement Mode:</strong> {submitData.retirementMode || "Deferred"}</li>
+                )}
+                {submitData.paymentTerms === "LC" && submitData.retirementMode === "Deferred" && (
+                  <li><strong>Tenure:</strong> {submitData.tenure || "120 Days"}</li>
+                )}
+                <li><strong>Incoterms:</strong> {submitData.incoterms || "CFR"}</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Additional Commercial Details:</h4>
+              <ul className="list-disc list-inside text-gray-600">
+                <li><strong>Tolerance:</strong> 0.00%</li>
+                <li><strong>Yarn Country of Origin:</strong> Indonesia</li>
+                <li><strong>Port Of Shipment:</strong> Port of Tanjung Priok, Jakarta, Indonesia</li>
+                <li><strong>Port Of Destination:</strong> Chattogram Port, Bangladesh</li>
+                <li><strong>Container Type:</strong> 40FT HQ</li>
+                <li><strong>Mode of Shipment:</strong> {submitData.shippingMethod || "By SEA"}</li>
+                <li><strong>PO Validity:</strong> 3 days from the date of issuance</li>
+                <li><strong>Late Shipment:</strong> Epyllion reserves the right to cancel the order in case of delayed delivery.</li>
+                <li><strong>Partial Shipment:</strong> Not Allowed</li>
+                <li><strong>Last Shipment Date:</strong> {lastShipmentDate}</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-md font-medium text-gray-700">Declaration:</h4>
+              <p className="text-gray-600">
+                Please review all information in this Purchase Order carefully. Your acknowledgment will be considered as confirmation of
+                your acceptance and agreement to all the terms and conditions specified herein.
+              </p>
+            </div>
+          </div>
+        );
+      };
+
+      // Component for rendering PO details
+      const PODetails = ({ po, onApprove, onReject }) => {
+        return (
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold mb-4 text-gray-700">Purchase Order Details</h2>
+
+            {/* General Section */}
+            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+              <h3 className="text-lg font-medium mb-4 text-gray-700">General</h3>
+              {po.poData.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-gray-600">PO No.: PO-2025-{po.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">PO Date: 07/07/2025 12:24 PM</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Supplier Name: {po.poData[0].supplier}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Company Name: Company XYZ</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Instructions: {po.instructions}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-700">No data available for this Purchase Order.</p>
+              )}
+            </div>
+
+            {/* Item Information Section */}
+            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+              <h3 className="text-lg font-medium mb-4 text-gray-700">Item Information</h3>
+              {po.poData.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                        <th className="border border-gray-300 p-3 text-left">Yarn Description</th>
+                        <th className="border border-gray-300 p-3 text-left">YR No.</th>
+                        <th className="border border-gray-300 p-3 text-left">RFQ No.</th>
+                        <th className="border border-gray-300 p-3 text-left">H.S. Code</th>
+                        <th className="border border-gray-300 p-3 text-left">Country of Origin</th>
+                        <th className="border border-gray-300 p-3 text-left">UOM</th>
+                        <th className="border border-gray-300 p-3 text-left">Required Qty.</th>
+                        <th className="border border-gray-300 p-3 text-left">Price</th>
+                        <th className="border border-gray-300 p-3 text-left">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {po.poData.map((row) => (
+                        <tr key={row.id} className="hover:bg-gray-50 transition-colors duration-200">
+                          <td className="border border-gray-200 p-3">{row.yarnDescription}</td>
+                          <td className="border border-gray-200 p-3">{row.ewoProjectionNo}</td>
+                          <td className="border border-gray-200 p-3">{row.rfqNo}</td>
+                          <td className="border border-gray-200 p-3">1234-56</td>
+                          <td className="border border-gray-200 p-3">China</td>
+                          <td className="border border-gray-200 p-3">kg</td>
+                          <td className="border border-gray-200 p-3">100</td>
+                          <td className="border border-gray-200 p-3">{row.price}</td>
+                          <td className="border border-gray-200 p-3">{(row.price * 100).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-gray-200">
+                        <td colSpan="8" className="border border-gray-300 p-3 text-right font-semibold">Total</td>
+                        <td className="border border-gray-300 p-3 font-semibold">
+                          {po.poData.reduce((sum, row) => sum + (row.price * 100), 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-gray-700">No data available for this Purchase Order.</p>
+              )}
+              <FixedFields submitData={po.submitData} />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-4 flex justify-end space-x-4">
+              <button
+                onClick={() => setCurrentView("table")}
+                className="bg-gray-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-gray-600 transition-all duration-200"
+              >
+                Back
+              </button>
+              {po.status === "Waiting" && (
+                <>
+                  <button
+                    onClick={() => onApprove(po.id)}
+                    className="bg-green-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-green-600 transition-all duration-200"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => onReject(po.id)}
+                    className="bg-red-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-red-600 transition-all duration-200"
+                  >
+                    Reject
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      // Rendering the main interface
+      return (
+        <div className="container mx-auto p-6">
+          <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
+            Purchase Order Approval
+          </h1>
+
+          {/* Tabs for different lists */}
+          <div className="mb-8">
+            <div className="flex space-x-2 border-b border-gray-300">
+              {["Waiting for Approval", "Approved PO", "Reject PO", "All PO List(s)"].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    setCurrentView("table");
+                    setSelectedPO(null);
+                  }}
+                  className={`px-6 py-2 font-medium text-gray-700 rounded-t-lg transition-all duration-200 ${
+                    activeTab === tab
+                      ? "bg-white border-b-2 border-blue-500 text-blue-600"
+                      : "bg-gray-200 hover:bg-gray-300 hover:text-blue-500"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Content for Waiting for Approval tab */}
+          {activeTab === "Waiting for Approval" && (
+            <div className="mb-8">
+              {currentView === "table" && (
+                <>
+                  <h2 className="text-xl font-semibold mb-4 text-gray-700">Waiting for Approval</h2>
+                  {pos.filter((po) => po.status === "Waiting").length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse bg-white shadow-md rounded-lg">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                            <th className="border border-gray-300 p-3 text-left">PO No.</th>
+                            <th className="border border-gray-300 p-3 text-left">Supplier Name</th>
+                            <th className="border border-gray-300 p-3 text-left">PO Date</th>
+                            <th className="border border-gray-300 p-3 text-left">Total Amount</th>
+                            <th className="border border-gray-300 p-3 text-left">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pos
+                            .filter((po) => po.status === "Waiting")
+                            .map((po) => (
+                              <tr key={po.id} className="hover:bg-gray-50 transition-colors duration-200">
+                                <td className="border border-gray-200 p-3">PO-2025-{po.id}</td>
+                                <td className="border border-gray-200 p-3">{po.poData[0].supplier}</td>
+                                <td className="border border-gray-200 p-3">07/07/2025 12:24 PM</td>
+                                <td className="border border-gray-200 p-3">
+                                  {po.poData.reduce((sum, row) => sum + (row.price * 100), 0).toFixed(2)}
+                                </td>
+                                <td className="border border-gray-200 p-3">
+                                  <button
+                                    onClick={() => handleViewPO(po)}
+                                    className="bg-blue-500 text-white px-4 py-1 rounded-lg hover:bg-blue-600 transition-all duration-200"
+                                  >
+                                    View
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-gray-700">No Purchase Orders waiting for approval.</p>
+                  )}
+                </>
+              )}
+              {currentView === "viewPO" && selectedPO && (
+                <PODetails po={selectedPO} onApprove={handleApprove} onReject={handleReject} />
+              )}
+            </div>
+          )}
+
+          {/* Content for Approved PO tab */}
+          {activeTab === "Approved PO" && (
+            <div className="mb-8">
+              {currentView === "table" && (
+                <>
+                  <h2 className="text-xl font-semibold mb-4 text-gray-700">Approved Purchase Orders</h2>
+                  {pos.filter((po) => po.status === "Approved").length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse bg-white shadow-md rounded-lg">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                            <th className="border border-gray-300 p-3 text-left">PO No.</th>
+                            <th className="border border-gray-300 p-3 text-left">Supplier Name</th>
+                            <th className="border border-gray-300 p-3 text-left">PO Date</th>
+                            <th className="border border-gray-300 p-3 text-left">Total Amount</th>
+                            <th className="border border-gray-300 p-3 text-left">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pos
+                            .filter((po) => po.status === "Approved")
+                            .map((po) => (
+                              <tr key={po.id} className="hover:bg-gray-50 transition-colors duration-200">
+                                <td className="border border-gray-200 p-3">PO-2025-{po.id}</td>
+                                <td className="border border-gray-200 p-3">{po.poData[0].supplier}</td>
+                                <td className="border border-gray-200 p-3">07/07/2025 12:24 PM</td>
+                                <td className="border border-gray-200 p-3">
+                                  {po.poData.reduce((sum, row) => sum + (row.price * 100), 0).toFixed(2)}
+                                </td>
+                                <td className="border border-gray-200 p-3">
+                                  <button
+                                    onClick={() => handleViewPO(po)}
+                                    className="bg-blue-500 text-white px-4 py-1 rounded-lg hover:bg-blue-600 transition-all duration-200"
+                                  >
+                                    View
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-gray-700">No approved Purchase Orders available.</p>
+                  )}
+                </>
+              )}
+              {currentView === "viewPO" && selectedPO && (
+                <PODetails po={selectedPO} />
+              )}
+            </div>
+          )}
+
+          {/* Content for Reject PO tab */}
+          {activeTab === "Reject PO" && (
+            <div className="mb-8">
+              {currentView === "table" && (
+                <>
+                  <h2 className="text-xl font-semibold mb-4 text-gray-700">Rejected Purchase Orders</h2>
+                  {pos.filter((po) => po.status === "Rejected").length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse bg-white shadow-md rounded-lg">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                            <th className="border border-gray-300 p-3 text-left">PO No.</th>
+                            <th className="border border-gray-300 p-3 text-left">Supplier Name</th>
+                            <th className="border border-gray-300 p-3 text-left">PO Date</th>
+                            <th className="border border-gray-300 p-3 text-left">Total Amount</th>
+                            <th className="border border-gray-300 p-3 text-left">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pos
+                            .filter((po) => po.status === "Rejected")
+                            .map((po) => (
+                              <tr key={po.id} className="hover:bg-gray-50 transition-colors duration-200">
+                                <td className="border border-gray-200 p-3">PO-2025-{po.id}</td>
+                                <td className="border border-gray-200 p-3">{po.poData[0].supplier}</td>
+                                <td className="border border-gray-200 p-3">07/07/2025 12:24 PM</td>
+                                <td className="border border-gray-200 p-3">
+                                  {po.poData.reduce((sum, row) => sum + (row.price * 100), 0).toFixed(2)}
+                                </td>
+                                <td className="border border-gray-200 p-3">
+                                  <button
+                                    onClick={() => handleViewPO(po)}
+                                    className="bg-blue-500 text-white px-4 py-1 rounded-lg hover:bg-blue-600 transition-all duration-200"
+                                  >
+                                    View
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-gray-700">No rejected Purchase Orders available.</p>
+                  )}
+                </>
+              )}
+              {currentView === "viewPO" && selectedPO && (
+                <PODetails po={selectedPO} />
+              )}
+            </div>
+          )}
+
+          {/* Content for All PO List(s) tab */}
+          {activeTab === "All PO List(s)" && (
+            <div className="mb-8">
+              {currentView === "table" && (
+                <>
+                  <h2 className="text-xl font-semibold mb-4 text-gray-700">All Purchase Orders</h2>
+                  {pos.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse bg-white shadow-md rounded-lg">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                            <th className="border border-gray-300 p-3 text-left">PO No.</th>
+                            <th className="border border-gray-300 p-3 text-left">Supplier Name</th>
+                            <th className="border border-gray-300 p-3 text-left">PO Date</th>
+                            <th className="border border-gray-300 p-3 text-left">Total Amount</th>
+                            <th className="border border-gray-300 p-3 text-left">Status</th>
+                            <th className="border border-gray-300 p-3 text-left">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pos.map((po) => (
+                            <tr key={po.id} className="hover:bg-gray-50 transition-colors duration-200">
+                              <td className="border border-gray-200 p-3">PO-2025-{po.id}</td>
+                              <td className="border border-gray-200 p-3">{po.poData[0].supplier}</td>
+                              <td className="border border-gray-200 p-3">07/07/2025 12:24 PM</td>
+                              <td className="border border-gray-200 p-3">
+                                {po.poData.reduce((sum, row) => sum + (row.price * 100), 0).toFixed(2)}
+                              </td>
+                              <td className="border border-gray-200 p-3">{po.status}</td>
+                              <td className="border border-gray-200 p-3">
+                                <button
+                                  onClick={() => handleViewPO(po)}
+                                  className="bg-blue-500 text-white px-4 py-1 rounded-lg hover:bg-blue-600 transition-all duration-200"
+                                >
+                                  View
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-gray-700">No Purchase Orders available.</p>
+                  )}
+                </>
+              )}
+              {currentView === "viewPO" && selectedPO && (
+                <PODetails po={selectedPO} />
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Rendering the App component to the DOM with error handling
+    try {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    } catch (error) {
+      console.error("Rendering error:", error);
+    }
+  </script>
+</body>
+</html>

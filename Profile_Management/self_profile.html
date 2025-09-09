@@ -9,36 +9,47 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #f4f4f4;
+            background-color: #f0f2f5;
         }
         header {
             text-align: center;
             padding: 20px;
-            background-color: #333;
+            background-color: #2c3e50;
             color: white;
+            border-radius: 8px 8px 0 0;
         }
         .container {
             max-width: 600px;
             margin: 20px auto;
             padding: 20px;
             background-color: white;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
-        p {
-            line-height: 1.6;
+        ul {
+            list-style-type: disc;
+            padding-left: 20px;
+            line-height: 1.8;
+        }
+        li {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        h1 {
+            font-size: 24px;
+            margin: 0;
         }
     </style>
 </head>
 <body>
     <header>
-        <h1>Self Profile (For Supplier or Agent):</h1>
+        <h1>Self Profile (For Supplier or Agent)</h1>
     </header>
     <div class="container">
-        <p>
-            if supplier than show supplier registration information. Supplier can edit and update information and submit to review of SCD.<br>
-            if Agent then show agent registration information. Agent can edit and update information and submit to review of SCD
-        </p>
+        <ul>
+            <li>For Suppliers: Access and view supplier registration details. Suppliers can edit and update their information, then submit it for SCD review.</li>
+            <li>For Agents: Access and view agent registration details. Agents can modify and update their information, then submit it for SCD review.</li>
+        </ul>
     </div>
 </body>
 </html>

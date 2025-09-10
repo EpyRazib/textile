@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Settings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        .profile-pic {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container p-6 bg-white rounded-lg shadow-lg mt-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6"><i class="fas fa-user-cog mr-2"></i>Account Settings</h1>
+        
+        <div class="mb-6 flex items-center">
+            <div>
+                <img id="profilePicPreview" src="https://via.placeholder.com/120" alt="Profile Picture" class="profile-pic mr-4">
+                <input type="file" id="profilePic" accept="image/*" class="hidden" onchange="previewProfilePic(event)">
+                <button onclick="document.getElementById('profilePic').click()" class="mt-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-800">
+                    <i class="fas fa-camera mr-2"></i>Change Profile Picture
+                </button>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-gray-700 font-semibold mb-2">Name</label>
+            <p class="text-gray-600">John Doe</p>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-gray-700 font-semibold mb-2">Email ID</label>
+            <p class="text-gray-600">john.doe@example.com</p>
+        </div>
+
+        <div class="mb-6">
+            <label for="password" class="block text-gray-700 font-semibold mb-2">Password</label>
+            <div class="relative">
+                <input type="password" id="password" class="w-full p-2 border rounded" placeholder="Enter new password">
+                <button onclick="togglePassword()" class="absolute right-2 top-2 text-gray-600">
+                    <i id="passwordToggleIcon" class="fas fa-eye"></i>
+                </button>
+            </div>
+        </div>
+
+        <button onclick="saveChanges()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-800">
+            <i class="fas fa-save mr-2"></i>Save Changes
+        </button>
+    </div>
+
+    <script>
+        function previewProfilePic(event) {
+            const reader = new FileReader();
+            reader.onload = function() {
+                const output = document.getElementById('profilePicPreview');
+                output.src = reader.result;
+            };
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        function saveChanges() {
+            const password = document.getElementById('password').value;
+            const profilePic = document.getElementById('profilePic').files[0];
+            let message = 'Changes saved successfully:\n';
+            if (password) message += `New Password: ${password}\n`;
+            if (profilePic) message += `New Profile Picture: ${profilePic.name}`;
+            if (!password && !profilePic) message = 'No changes made.';
+            alert(message);
+            // Add logic to send data to server here
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Path Creation & Submission</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 1rem;
+        }
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+        .flex {
+            display: flex;
+        }
+        .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+            margin-left: 1rem;
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        #yetToSubmit {
+            background-color: #10b981;
+        }
+        #yetToSubmit:hover {
+            background-color: #059669;
+        }
+        #submitted {
+            background-color: #ef4444;
+        }
+        #submitted:hover {
+            background-color: #dc2626;
+        }
+        #allList {
+            background-color: #6b7280;
+        }
+        #allList:hover {
+            background-color: #4b5563;
+        }
+        #generationBtn {
+            background-color: #8b5cf6;
+        }
+        #generationBtn:hover {
+            background-color: #7c3aed;
+        }
+        .hidden {
+            display: none;
+        }
+        .details-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #e5e7eb;
+            padding: 0.5rem;
+        }
+        th {
+            background-color: #e5e7eb;
+        }
+        .bg-white {
+            background-color: white;
+        }
+        .p-4 {
+            padding: 1rem;
+        }
+        .rounded {
+            border-radius: 0.25rem;
+        }
+        .shadow {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+        }
+        .text-xl {
+            font-size: 1.25rem;
+        }
+        .font-bold {
+            font-weight: bold;
+        }
+        .mb-2 {
+            margin-bottom: 0.5rem;
+        }
+        .ml-2 {
+            margin-left: 0.5rem;
+        }
+        .text-blue-500 {
+            color: #3b82f6;
+        }
+        .hover\:text-blue-700:hover {
+            color: #1e40af;
+        }
+        .mt-4 {
+            margin-top: 1rem;
+        }
+        .view-icon {
+            font-size: 1.2rem;
+            color: #3b82f6;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        .view-icon:hover {
+            color: #1e40af;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 0.25rem;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+        .dropdown-menu.show {
+            display: block;
+        }
+        select, input {
+            width: 100%;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 0.25rem;
+        }
+        .filter-input {
+            width: 100%;
+            padding: 0.25rem;
+            margin-top: 0.25rem;
+            border: 1px solid #ccc;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="text-xl font-bold mb-4">Registration Path Creation & Submission</h2>
+        
+        <!-- Generation Button -->
+        <div class="mb-4">
+            <button id="generationBtn">Generation <i class="fas fa-chevron-down ml-1"></i></button>
+            <div id="generationDropdown" class="dropdown-menu mt-1">
+                <a href="#" onclick="openSupplierModal()" class="block px-4 py-2 text-gray-800 hover:bg-gray-200">Supplier</a>
+                <a href="#" onclick="openAgentModal()" class="block px-4 py-2 text-gray-800 hover:bg-gray-200">Agent</a>
+            </div>
+        </div>
+
+        <!-- Top Buttons -->
+        <div class="mb-4 flex space-x-4">
+            <button id="yetToSubmit">Yet to Submit</button>
+            <button id="submitted">Submitted</button>
+            <button id="allList">All List</button>
+        </div>
+
+        <!-- Registration List and Details -->
+        <div id="registrationSection">
+            <table id="registrationTable">
+                <thead>
+                    <tr>
+                        <th class="border p-2">Registration ID
+                            <input type="text" class="filter-input" id="filterRegId" onkeyup="applyFilters()" placeholder="Filter">
+                        </th>
+                        <th class="border p-2">Supplier/Agent Name
+                            <input type="text" class="filter-input" id="filterName" onkeyup="applyFilters()" placeholder="Filter">
+                        </th>
+                        <th class="border p-2">Email
+                            <input type="text" class="filter-input" id="filterEmail" onkeyup="applyFilters()" placeholder="Filter">
+                        </th>
+                        <th class="border p-2">Status
+                            <input type="text" class="filter-input" id="filterStatus" onkeyup="applyFilters()" placeholder="Filter">
+                        </th>
+                        <th class="border p-2">Send Mail
+                            <input type="text" class="filter-input" id="filterAction" onkeyup="applyFilters()" placeholder="Filter">
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="registrationTableBody">
+                    <!-- Dynamically populated -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="detailsSection" class="hidden mt-4">
+            <h2 class="text-xl font-bold mb-2">Registration Details</h2>
+            <div class="bg-white p-4 rounded shadow details-container">
+                <div class="mb-2"><strong>Registration ID:</strong> <span id="detailRegId" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Name:</strong> <span id="detailName" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Email:</strong> <span id="detailEmail" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Address:</strong> <span id="detailAddress" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Contact Number:</strong> <span id="detailContact" class="ml-2"></span></div>
+                <div class="mb-2"><strong>Status:</strong> <span id="detailStatus" class="ml-2"></span></div>
+
+                <button id="submitBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplier Modal -->
+    <div id="supplierModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('supplierModal')">&times;</span>
+            <h3 class="text-xl font-bold mb-4">Generate Supplier Registration Link</h3>
+            <label for="supplierType">Supplier Type:</label>
+            <select id="supplierType" onchange="handleSupplierTypeChange()">
+                <option value="">Select Type</option>
+                <option value="New">New</option>
+                <option value="Exist">Exist</option>
+            </select>
+
+            <div id="newSupplierFields" class="hidden">
+                <label for="supplierName">Supplier Name:</label>
+                <input type="text" id="supplierName" placeholder="Enter Supplier Name">
+                <label for="registrant">Registrant:</label>
+                <select id="registrant">
+                    <option value="">Select Registrant</option>
+                    <option value="Self">Self</option>
+                    <option value="Agent">Agent</option>
+                    <option value="SCD">SCD</option>
+                </select>
+                <label for="contactPerson">Contact Person:</label>
+                <input type="text" id="contactPerson" placeholder="Enter Contact Person">
+                <label for="email">Email:</label>
+                <input type="email" id="email" placeholder="Enter Email">
+            </div>
+
+            <div id="existingSuppliersDiv" class="hidden">
+                <label for="existingSupplier">Select Existing Supplier:</label>
+                <select id="existingSupplier">
+                    <option value="">Select Supplier</option>
+                </select>
+            </div>
+
+            <div id="registrantSection" class="hidden">
+                <label><strong>Registrant:</strong> <span id="registrantType"></span></label>
+                <div id="selfDetails" class="hidden mt-2">
+                    <div><strong>Contact Person:</strong> <span id="selfContact"></span></div>
+                    <div><strong>Email:</strong> <span id="selfEmail"></span></div>
+                </div>
+                <div id="agentDetails" class="hidden mt-2">
+                    <div><strong>Agent:</strong> <span id="agentName"></span></div>
+                    <div><strong>Contact Person:</strong> <span id="agentContact"></span></div>
+                    <div><strong>Email:</strong> <span id="agentEmail"></span></div>
+                </div>
+                <div id="scdDetails" class="hidden mt-2">
+                    <label for="scdEmail">Default User Email (Editable):</label>
+                    <input type="email" id="scdEmail" value="user@scd.com">
+                </div>
+            </div>
+
+            <button onclick="generateRegistration()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4">Generate</button>
+        </div>
+    </div>
+
+    <!-- Agent Modal -->
+    <div id="agentModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('agentModal')">&times;</span>
+            <h3 class="text-xl font-bold mb-4">Generate Agent Registration Link</h3>
+            <label for="existingAgent">Select Existing Agent:</label>
+            <select id="existingAgent" onchange="handleAgentChange()">
+                <option value="">Select Agent</option>
+                <option value="1">Agent A</option>
+                <option value="2">Agent B</option>
+            </select>
+            <div id="agentDetailsSection" class="hidden mt-2">
+                <div><strong>Contact:</strong> <span id="agentContactDisplay"></span></div>
+                <div><strong>Email:</strong> <span id="agentEmailDisplay"></span></div>
+            </div>
+            <button onclick="generateRegistration()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4">Generate</button>
+        </div>
+    </div>
+
+    <script>
+        let registrations = [
+            { regId: "REG001", name: "Supplier A", email: "suppliera@example.com", address: "Address A", contact: "123-456-7890", status: "Yet to Submit" },
+            { regId: "REG002", name: "Agent B", email: "agentb@example.com", address: "Address B", contact: "098-765-4321", status: "Submitted" },
+            { regId: "REG003", name: "Supplier C", email: "supplierc@example.com", address: "Address C", contact: "111-222-3333", status: "Yet to Submit" }
+        ];
+        let submittedRegistrations = [];
+        let currentIndex = -1;
+
+        // Sample existing suppliers data
+        let existingSuppliers = [
+            { id: 1, name: "Supplier 1", registrant: "Self", contact: "John Doe", email: "john@sup1.com" },
+            { id: 2, name: "Supplier 2", registrant: "Agent", agentName: "Agent X", agentContact: "Jane Smith", agentEmail: "jane@agent.com" },
+            { id: 3, name: "Supplier 3", registrant: "SCD", defaultEmail: "user@scd.com" }
+        ];
+
+        // Sample existing agents data
+        let existingAgents = [
+            { id: 1, name: "Agent A", contact: "123-456-7890", email: "agenta@example.com" },
+            { id: 2, name: "Agent B", contact: "098-765-4321", email: "agentb@example.com" }
+        ];
+
+        // Default to Yet to Submit
+        document.getElementById('yetToSubmit').classList.add('bg-green-600');
+        updateTable(registrations.filter(r => r.status === "Yet to Submit"));
+
+        // Generation Button Toggle
+        document.getElementById('generationBtn').addEventListener('click', function(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('generationDropdown');
+            dropdown.classList.toggle('show');
+        });
+
+        document.addEventListener('click', function() {
+            document.getElementById('generationDropdown').classList.remove('show');
+        });
+
+        function openSupplierModal() {
+            document.getElementById('supplierModal').style.display = 'block';
+            document.getElementById('generationDropdown').classList.remove('show');
+            document.getElementById('newSupplierFields').classList.add('hidden');
+            document.getElementById('existingSuppliersDiv').classList.add('hidden');
+            document.getElementById('registrantSection').classList.add('hidden');
+        }
+
+        function openAgentModal() {
+            document.getElementById('agentModal').style.display = 'block';
+            document.getElementById('generationDropdown').classList.remove('show');
+            document.getElementById('agentDetailsSection').classList.add('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            document.getElementById('newSupplierFields').classList.add('hidden');
+            document.getElementById('existingSuppliersDiv').classList.add('hidden');
+            document.getElementById('registrantSection').classList.add('hidden');
+            document.getElementById('selfDetails').classList.add('hidden');
+            document.getElementById('agentDetails').classList.add('hidden');
+            document.getElementById('scdDetails').classList.add('hidden');
+            document.getElementById('agentDetailsSection').classList.add('hidden');
+        }
+
+        function handleSupplierTypeChange() {
+            const type = document.getElementById('supplierType').value;
+            const newFields = document.getElementById('newSupplierFields');
+            const existingDiv = document.getElementById('existingSuppliersDiv');
+            const registrantSection = document.getElementById('registrantSection');
+
+            newFields.classList.add('hidden');
+            existingDiv.classList.add('hidden');
+            registrantSection.classList.add('hidden');
+            document.getElementById('selfDetails').classList.add('hidden');
+            document.getElementById('agentDetails').classList.add('hidden');
+            document.getElementById('scdDetails').classList.add('hidden');
+
+            if (type === 'New') {
+                newFields.classList.remove('hidden');
+            } else if (type === 'Exist') {
+                existingDiv.classList.remove('hidden');
+                populateExistingSuppliers();
+            }
+        }
+
+        function populateExistingSuppliers() {
+            const select = document.getElementById('existingSupplier');
+            select.innerHTML = '<option value="">Select Supplier</option>';
+            existingSuppliers.forEach(sup => {
+                const option = document.createElement('option');
+                option.value = sup.id;
+                option.textContent = sup.name;
+                select.appendChild(option);
+            });
+            select.onchange = handleExistingSupplierChange;
+        }
+
+        function handleExistingSupplierChange() {
+            const supId = parseInt(document.getElementById('existingSupplier').value);
+            const sup = existingSuppliers.find(s => s.id === supId);
+            const registrantSection = document.getElementById('registrantSection');
+            if (sup) {
+                document.getElementById('registrantType').textContent = sup.registrant;
+                registrantSection.classList.remove('hidden');
+
+                document.getElementById('selfDetails').classList.add('hidden');
+                document.getElementById('agentDetails').classList.add('hidden');
+                document.getElementById('scdDetails').classList.add('hidden');
+
+                if (sup.registrant === 'Self') {
+                    document.getElementById('selfContact').textContent = sup.contact;
+                    document.getElementById('selfEmail').textContent = sup.email;
+                    document.getElementById('selfDetails').classList.remove('hidden');
+                } else if (sup.registrant === 'Agent') {
+                    document.getElementById('agentName').textContent = sup.agentName;
+                    document.getElementById('agentContact').textContent = sup.agentContact;
+                    document.getElementById('agentEmail').textContent = sup.agentEmail;
+                    document.getElementById('agentDetails').classList.remove('hidden');
+                } else if (sup.registrant === 'SCD') {
+                    document.getElementById('scdEmail').value = sup.defaultEmail;
+                    document.getElementById('scdDetails').classList.remove('hidden');
+                }
+            }
+        }
+
+        function handleAgentChange() {
+            const agentId = document.getElementById('existingAgent').value;
+            const agent = existingAgents.find(a => a.id == agentId);
+            const agentDetailsSection = document.getElementById('agentDetailsSection');
+            if (agent) {
+                document.getElementById('agentContactDisplay').textContent = agent.contact;
+                document.getElementById('agentEmailDisplay').textContent = agent.email;
+                agentDetailsSection.classList.remove('hidden');
+            } else {
+                agentDetailsSection.classList.add('hidden');
+            }
+        }
+
+        function generateRegistration() {
+            const type = document.getElementById('supplierType') ? document.getElementById('supplierType').value : 'Agent';
+            let name, email, contact;
+
+            if (type === 'New' && document.getElementById('supplierType').parentElement.contains(document.getElementById('newSupplierFields'))) {
+                name = document.getElementById('supplierName').value;
+                const registrant = document.getElementById('registrant').value;
+                contact = document.getElementById('contactPerson').value;
+                email = document.getElementById('email').value;
+                if (!name || !registrant || !contact || !email) {
+                    alert("Please fill all fields for New Supplier.");
+                    return;
+                }
+            } else if (type === 'Exist') {
+                const supId = document.getElementById('existingSupplier').value;
+                const sup = existingSuppliers.find(s => s.id == supId);
+                if (sup) {
+                    name = sup.name;
+                    contact = sup.contact || (sup.agentContact ? sup.agentContact : '');
+                    email = sup.email || (sup.agentEmail ? sup.agentEmail : sup.defaultEmail);
+                }
+            } else if (type === 'Agent') {
+                const agentId = document.getElementById('existingAgent').value;
+                const agent = existingAgents.find(a => a.id == agentId);
+                if (agent) {
+                    name = agent.name;
+                    contact = agent.contact;
+                    email = agent.email;
+                }
+            }
+
+            if (!name || !contact || !email) {
+                alert("Invalid selection or missing data.");
+                return;
+            }
+
+            const newReg = {
+                regId: 'REG' + Date.now(),
+                name: name,
+                email: email,
+                address: 'Generated Address',
+                contact: contact,
+                status: 'Yet to Submit'
+            };
+
+            registrations.push(newReg);
+            alert(`Generated registration for ${name}`);
+            closeModal('supplierModal');
+            closeModal('agentModal');
+            updateTable(registrations.filter(r => r.status === "Yet to Submit"));
+        }
+
+        document.getElementById('yetToSubmit').addEventListener('click', () => {
+            document.getElementById('registrationSection').classList.remove('hidden');
+            document.getElementById('detailsSection').classList.add('hidden');
+            updateTable(registrations.filter(r => r.status === "Yet to Submit"));
+            resetButtonStyles();
+            document.getElementById('yetToSubmit').classList.add('bg-green-600');
+        });
+
+        document.getElementById('submitted').addEventListener('click', () => {
+            document.getElementById('registrationSection').classList.remove('hidden');
+            document.getElementById('detailsSection').classList.add('hidden');
+            updateTable(submittedRegistrations);
+            resetButtonStyles();
+            document.getElementById('submitted').classList.add('bg-red-600');
+        });
+
+        document.getElementById('allList').addEventListener('click', () => {
+            document.getElementById('registrationSection').classList.remove('hidden');
+            document.getElementById('detailsSection').classList.add('hidden');
+            updateTable([...registrations, ...submittedRegistrations]);
+            resetButtonStyles();
+            document.getElementById('allList').classList.add('bg-gray-600');
+        });
+
+        function updateTable(list = registrations) {
+            const tbody = document.getElementById('registrationTableBody');
+            tbody.innerHTML = '';
+            const filteredList = applyFiltersToList(list);
+            filteredList.forEach((reg, index) => {
+                const row = document.createElement('tr');
+                const actionIcon = reg.status === "Yet to Submit" ? '<i onclick="viewRegistration(' + index + ', ' + (list === registrations ? '\'registrations\'' : '\'submittedRegistrations\'') + ')" class="fas fa-paper-plane view-icon"></i>' : '<i onclick="viewRegistration(' + index + ', ' + (list === registrations ? '\'registrations\'' : '\'submittedRegistrations\'') + ')" class="fas fa-redo-alt view-icon"></i>';
+                row.innerHTML = `<td class="border p-2">${reg.regId}</td><td class="border p-2">${reg.name}</td><td class="border p-2">${reg.email}</td><td class="border p-2">${reg.status}</td><td class="border p-2">${actionIcon}</td>`;
+                tbody.appendChild(row);
+            });
+        }
+
+        function viewRegistration(index, listName) {
+            let regList = listName === 'registrations' ? registrations : submittedRegistrations;
+            currentIndex = index;
+            const reg = regList[index];
+            document.getElementById('detailRegId').textContent = reg.regId;
+            document.getElementById('detailName').textContent = reg.name;
+            document.getElementById('detailEmail').textContent = reg.email;
+            document.getElementById('detailAddress').textContent = reg.address;
+            document.getElementById('detailContact').textContent = reg.contact;
+            document.getElementById('detailStatus').textContent = reg.status;
+            document.getElementById('registrationSection').classList.add('hidden');
+            document.getElementById('detailsSection').classList.remove('hidden');
+        }
+
+        document.getElementById('submitBtn').addEventListener('click', () => {
+            if (currentIndex >= 0) {
+                const reg = registrations.splice(currentIndex, 1)[0];
+                reg.status = "Submitted";
+                submittedRegistrations.push(reg);
+                alert(`Submitted ${reg.name}.`);
+                document.getElementById('detailsSection').classList.add('hidden');
+                document.getElementById('registrationSection').classList.remove('hidden');
+                updateTable(registrations.filter(r => r.status === "Yet to Submit"));
+            }
+        });
+
+        function resetButtonStyles() {
+            document.getElementById('yetToSubmit').classList.remove('bg-green-600');
+            document.getElementById('submitted').classList.remove('bg-red-600');
+            document.getElementById('allList').classList.remove('bg-gray-600');
+        }
+
+        function applyFilters() {
+            const regIdFilter = document.getElementById('filterRegId').value.toLowerCase();
+            const nameFilter = document.getElementById('filterName').value.toLowerCase();
+            const emailFilter = document.getElementById('filterEmail').value.toLowerCase();
+            const statusFilter = document.getElementById('filterStatus').value.toLowerCase();
+            const actionFilter = document.getElementById('filterAction').value.toLowerCase();
+
+            const currentList = [...registrations, ...submittedRegistrations];
+            const filteredList = currentList.filter(reg => 
+                reg.regId.toLowerCase().includes(regIdFilter) &&
+                reg.name.toLowerCase().includes(nameFilter) &&
+                reg.email.toLowerCase().includes(emailFilter) &&
+                reg.status.toLowerCase().includes(statusFilter) &&
+                (reg.status === "Yet to Submit" ? "send mail" : "re-send mail").includes(actionFilter)
+            );
+
+            updateTable(filteredList);
+        }
+
+        function applyFiltersToList(list) {
+            const regIdFilter = document.getElementById('filterRegId').value.toLowerCase();
+            const nameFilter = document.getElementById('filterName').value.toLowerCase();
+            const emailFilter = document.getElementById('filterEmail').value.toLowerCase();
+            const statusFilter = document.getElementById('filterStatus').value.toLowerCase();
+            const actionFilter = document.getElementById('filterAction').value.toLowerCase();
+            return list.filter(reg => 
+                reg.regId.toLowerCase().includes(regIdFilter) &&
+                reg.name.toLowerCase().includes(nameFilter) &&
+                reg.email.toLowerCase().includes(emailFilter) &&
+                reg.status.toLowerCase().includes(statusFilter) &&
+                (reg.status === "Yet to Submit" ? "send mail" : "re-send mail").includes(actionFilter)
+            );
+        }
+
+        // Close modals on outside click
+        window.onclick = function(event) {
+            const supplierModal = document.getElementById('supplierModal');
+            const agentModal = document.getElementById('agentModal');
+            if (event.target == supplierModal) {
+                supplierModal.style.display = 'none';
+            }
+            if (event.target == agentModal) {
+                agentModal.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

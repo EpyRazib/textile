@@ -536,10 +536,66 @@
             const filteredList = applyFiltersToList(list);
             filteredList.forEach((reg, index) => {
                 const row = document.createElement('tr');
-                const actionIcon = reg.status === "Yet to Submit" ? '<i onclick="viewRegistration(' + index + ', ' + (list === registrations ? '\'registrations\'' : '\'submittedRegistrations\'') + ')" class="fas fa-paper-plane view-icon"></i>' : '<i onclick="viewRegistration(' + index + ', ' + (list === registrations ? '\'registrations\'' : '\'submittedRegistrations\'') + ')" class="fas fa-redo-alt view-icon"></i>';
+                const actionIcon = reg.status === "Yet to Submit" ? '<i onclick="sendMail(' + index + ', ' + (list === registrations ? '\'registrations\'' : '\'submittedRegistrations\'') + ')" class="fas fa-paper-plane view-icon"></i>' : '<i onclick="resendMail(' + index + ', ' + (list === registrations ? '\'registrations\'' : '\'submittedRegistrations\'') + ')" class="fas fa-redo-alt view-icon"></i>';
                 row.innerHTML = `<td class="border p-2">${reg.regId}</td><td class="border p-2">${reg.name}</td><td class="border p-2">${reg.email}</td><td class="border p-2">${reg.status}</td><td class="border p-2">${actionIcon}</td>`;
                 tbody.appendChild(row);
             });
+        }
+
+        function sendMail(index, listName) {
+            let regList = listName === 'registrations' ? registrations : submittedRegistrations;
+            const reg = regList[index];
+            const emailVal = reg.email;
+            const formLink = 'https://epyrazib.github.io/textile/supplier_portal/supplier_form.html'; // Replace with actual URL
+            const emailBody = `<p>Dear Sir,<br>
+            Greetings from Epyllion Group. We hope this message finds you well.</p>
+            <p>We are reaching out to formally request your registration and enlistment as an approved supplier. These registrations are sought for potential collaboration with the following companies under Epyllion Group:</p>
+            <ol>
+                <li>Epyllion Fabrics Ltd.</li>
+                <li>Epyllion Knitex Ltd.</li>
+                <li>Epyllion Style Ltd.</li>
+            </ol>
+            <p>As part of our procurement and compliance procedures, we kindly request you to complete the Supplier Registration & Onboarding Form and return to us on or before <strong>October 11, 2025</strong>. Please click the below link and fill in all information.</p>
+            <p><a href="${formLink}">Click here to open the supplier form</a><br><br></p>
+            <p>We look forward to building a mutually beneficial professional relationship and exploring future opportunities together.</p>
+            <p>Thank you for your attention and cooperation.</p>
+            <br><br>
+            <p>Warm regards,</p>
+            <p><strong>Mr. G.M. Salah Uddin</strong><br>
+            Assistant General Manager<br>
+            Supply Chain Department</p>`;
+            const subject = 'Supplier Registration/Onboarding Information';
+            const encodedSubject = encodeURIComponent(subject);
+            const encodedBody = encodeURIComponent(emailBody);
+            window.location.href = `email_preview.html?to=${encodeURIComponent(emailVal)}&subject=${encodedSubject}&body=${encodedBody}`;
+        }
+
+        function resendMail(index, listName) {
+            let regList = listName === 'registrations' ? registrations : submittedRegistrations;
+            const reg = regList[index];
+            const emailVal = reg.email;
+            const formLink = 'https://epyrazib.github.io/textile/supplier_portal/supplier_form.html'; // Replace with actual URL
+            const emailBody = `<p>Dear Sir,<br>
+            Greetings from Epyllion Group. We hope this message finds you well.</p>
+            <p>We are reaching out to formally request your registration and enlistment as an approved supplier. These registrations are sought for potential collaboration with the following companies under Epyllion Group:</p>
+            <ol>
+                <li>Epyllion Fabrics Ltd.</li>
+                <li>Epyllion Knitex Ltd.</li>
+                <li>Epyllion Style Ltd.</li>
+            </ol>
+            <p>As part of our procurement and compliance procedures, we kindly request you to complete the Supplier Registration & Onboarding Form and return to us on or before <strong>October 11, 2025</strong>. Please click the below link and fill in all information.</p>
+            <p><a href="${formLink}">Click here to open the supplier form</a><br><br></p>
+            <p>We look forward to building a mutually beneficial professional relationship and exploring future opportunities together.</p>
+            <p>Thank you for your attention and cooperation.</p>
+            <br><br>
+            <p>Warm regards,</p>
+            <p><strong>Mr. G.M. Salah Uddin</strong><br>
+            Assistant General Manager<br>
+            Supply Chain Department</p>`;
+            const subject = 'Supplier Registration/Onboarding Information (Re-Send)';
+            const encodedSubject = encodeURIComponent(subject);
+            const encodedBody = encodeURIComponent(emailBody);
+            window.location.href = `email_preview.html?to=${encodeURIComponent(emailVal)}&subject=${encodedSubject}&body=${encodedBody}`;
         }
 
         function viewRegistration(index, listName) {

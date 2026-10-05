@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Module Design — Transaction Mode based Stock Management</title>
+<link rel="stylesheet" href="assets/tm-ui.css">
+<script src="assets/tm-app.js"></script>
+</head>
+<body>
+<div id="chrome"></div>
+
+<div class="page doc">
+  <h1 class="title">Stock Management by Transaction Mode — Module Design <span class="deptBadge ref">BLUEPRINT</span></h1>
+  <div class="subtitle">Yarn Inventory · Epyllion Textile ERP · design note accompanying the four interface mockups · 16-Sep-2026</div>
+
+  <h2>1 · The idea in one paragraph</h2>
+  <p>Instead of programming a separate screen for every kind of stock movement (issue, return, transfer, loan, adjustment…), the store defines each movement <b>once</b> as a <b>Transaction Mode</b>: what type it is (Addition, Deduction or Both), which <b>Stock Registers</b> it may take from and put into, whether it can cross <b>units</b>, which upstream <b>Reference Input</b> it must cite, and whether it needs approval. The <b>Daily Transaction</b> screen then reads that setup and shows only the fields the chosen mode allows. Every approved document writes ledger effects on (lot, unit, register) cells; the <b>Stock Register Ledger</b> and <b>Dashboard</b> are pure reads of those cells. Adding a new business movement becomes a setup task, not a development task.</p>
+
+  <div class="flow">
+    <div class="box g"><b>1 · Transaction Mode Setup</b>Define type, registers, unit rule, reference, approval<div class="muted" style="margin-top:4px">TM_01</div></div><div class="a">&#8594;</div>
+    <div class="box b"><b>2 · Daily Transaction</b>Pick mode → header → yarn lines → impact → submit<div class="muted" style="margin-top:4px">TM_02</div></div><div class="a">&#8594;</div>
+    <div class="box o"><b>3 · Posting engine</b>Approved doc → ledger effects on (lot, unit, register)<div class="muted" style="margin-top:4px">tm-app.js</div></div><div class="a">&#8594;</div>
+    <div class="box p"><b>4 · Ledger &amp; Dashboard</b>Balances, statement, register × unit, insights<div class="muted" style="margin-top:4px">TM_03 · TM_04</div></div>
+  </div>
+
+  <h2>2 · Concept model</h2>
+  <div class="ent">
+    <div class="entBox"><div class="hd">StockRegister<small>master · 6 rows</small></div><div class="bd"><span class="k">code</span> MMP | TXP | ALC | LIB | SMP | LFT<br>name, meaning, colour<br>active</div></div>
+    <div class="entBox"><div class="hd">Unit<small>master · 3 rows</small></div><div class="bd"><span class="k">code</span> EFL | EKL | ESL<br>name</div></div>
+    <div class="entBox"><div class="hd">ReferenceInput<small>master · 6 rows + N/A</small></div><div class="bd"><span class="k">key</span> KNR | YDR | TRR | RTN | LRR | LIR<br>name, source module, doc prefix<br>pre-fill rule</div></div>
+    <div class="entBox"><div class="hd">TransactionMode<small>setup · TM_01</small></div><div class="bd"><span class="k">code</span> TM-###  (auto)<br>name, shortName<br>type ∈ {ADD, DED, BOTH}<br>multiUnit, hasRef, <span class="fk">refInput</span><br><span class="fk">fromRegs[]</span>, <span class="fk">toRegs[]</span><br>approvalRequired, active, note</div></div>
+    <div class="entBox"><div class="hd">Lot<small>physical identity</small></div><div class="bd"><span class="k">id</span><br><span class="fk">yarnCode</span>, spinner<br>physicalLot, physicalCount<br>receivedDate</div></div>
+    <div class="entBox"><div class="hd">DailyTransaction<small>document · TM_02</small></div><div class="bd"><span class="k">no</span> DT-26-####<br>date, <span class="fk">mode</span>, status<br>fromUnit, fromReg, toUnit, toReg<br>refType, refNo, party, remarks<br>lines[] { <span class="fk">lot</span>, qty }<br>createdBy/On, approvedBy/On</div></div>
+    <div class="entBox"><div class="hd">LedgerEffect<small>derived on approval</small></div><div class="bd"><span class="fk">txn</span>, <span class="fk">lot</span>, unit, reg, <span class="k">delta</span><br>DED line → −qty on From cell<br>ADD line → +qty on To cell<br>BOTH line → both (two legs)</div></div>
+    <div class="entBox"><div class="hd">RegisterBalance<small>view, never stored</small></div><div class="bd">(lot, unit, reg) →<br>opening + Σ effects(Approved)<br>committed = Σ pending deductions<br>available = balance − committed</div></div>
+  </div>
+
+  <h2>3 · Transaction Mode Setup — field specification</h2>
+  <p>The fields below reproduce the reference sheet; rows tagged <span class="tag">ADDED</span> are recommendations that make the setup complete enough to drive the entry screen without further programming.</p>
+  <table class="spec">
+    <tr><th style="width:200px">Field</th><th style="width:110px">Type</th><th>Rule / meaning</th></tr>
+    <tr><td>Transaction Code</td><td>auto</td><td>TM-### generated on first save; read-only afterwards. Referenced by every document, so it never changes.</td></tr>
+    <tr><td>Transaction Name</td><td>text, unique</td><td>Full business name shown on cards and reports (e.g. Knitting Issue).</td></tr>
+    <tr><td>Transaction Short Name</td><td>text ≤ 8, unique</td><td>Printed in list grids and pills (e.g. KN-ISS). Upper-cased on save.</td></tr>
+    <tr><td>Transaction Type</td><td>radio</td><td><b>Addition</b> — only the To side is captured. <b>Deduction</b> — only the From side; every line is validated against Available. <b>Both</b> — one document, two ledger legs per line.</td></tr>
+    <tr><td>Transaction within Multi Unit?</td><td>checkbox</td><td>When ticked (meaningful for Both), From Unit and To Unit may differ and the same register may appear on both sides (physical move EKL → EFL inside Allocated). When not ticked, one Unit field feeds both sides and From/To register must differ.</td></tr>
+    <tr><td>Has Any Reference Input</td><td>checkbox</td><td>Forces the user to cite an upstream document. The Reference Input dropdown is enabled only when ticked.</td></tr>
+    <tr><td>Reference Input</td><td>dropdown</td><td>N/A, Knitting Requisition, YD Requisition, Transfer Requisition, Return Note, Loan Receive Request, Loan Issue Request. Selecting a document on the entry screen pre-fills unit, party and yarn lines.</td></tr>
+    <tr><td>From Stock Register</td><td>multi-check</td><td>Registers the mode may deduct from. Disabled for Addition. The entry screen offers exactly these; a single tick becomes a fixed value.</td></tr>
+    <tr><td>To Stock Register</td><td>multi-check</td><td>Registers the mode may add into. Disabled for Deduction.</td></tr>
+    <tr><td>Approval Required <span class="tag">ADDED</span></td><td>checkbox</td><td>Submit sends the document to Pending Approval; stock moves only when the Store Manager approves. Deductions in pending documents are shown as Committed so the same kg cannot be issued twice.</td></tr>
+    <tr><td>Active <span class="tag">ADDED</span></td><td>checkbox</td><td>Inactive modes keep their history but disappear from the entry screen. Modes are never deleted.</td></tr>
+    <tr><td>Description <span class="tag">ADDED</span></td><td>text</td><td>One line the store user sees while choosing the mode.</td></tr>
+    <tr><td>Rule preview <span class="tag">ADDED</span></td><td>generated</td><td>Plain-English sentence rebuilt from the ticks so the person setting up can read back exactly how the entry screen will behave.</td></tr>
+  </table>
+  <h4>Setup validations</h4>
+  <ul>
+    <li>Name and short name unique across modes; type mandatory.</li>
+    <li>Deduction / Both need ≥ 1 From register; Addition / Both need ≥ 1 To register.</li>
+    <li>Both, not multi-unit, with the same single register on both sides is rejected (nothing could move).</li>
+    <li>“Has reference” with N/A selected is rejected.</li>
+  </ul>
+
+  <h2>3b · Stock form rule — Intake and Lose</h2>
+  <p>Stock is always kept in two forms, and every quantity field carries six figures: <b>Intake Carton, Intake Cone, Intake Kg</b> (unopened original packing) and <b>Lose Carton, Lose Cone, Lose Kg</b> (opened cartons and loose cones). Total Kg = Intake Kg + Lose Kg is the posting basis for balances, statements and the dashboard; cartons and cones are tracked alongside so the store can count what is physically on the rack.</p>
+  <table class="spec">
+    <tr><th style="width:220px">Where</th><th>Rule</th></tr>
+    <tr><td>Lot master</td><td>Each lot carries <b>cones per carton</b> and <b>kg per cone</b>. Intake cartons → cones → kg follow this packing automatically; Lose kg can be typed for part cones.</td></tr>
+    <tr><td>Register cell</td><td>(lot, unit, register) holds a six-figure pack. Balance, Committed and Available are all per form; a deduction may not exceed Available in any of the six figures.</td></tr>
+    <tr><td>Pick from stock</td><td>Per lot: available Intake and Lose, then six pick inputs. Auto-pick takes full intake cartons first, then loose.</td></tr>
+    <tr><td>Floor Return</td><td>Always comes back in <b>Lose</b> form.</td></tr>
+    <tr><td>Carton Break (TM-014, type Form Conversion)</td><td>The store opens n intake cartons of a lot inside one register cell: Intake −n ctn / cones / kg, Lose +n ctn / cones / kg. Register kg does not change; the lot ledger shows the shift in the form columns.</td></tr>
+    <tr><td>Requisition</td><td>The floor asks in <b>Kg and Cone</b> only; the store decides which form to issue from.</td></tr>
+  </table>
+
+  <h2>4 · Posting rules by transaction type</h2>
+  <table class="spec">
+    <tr><th>Type</th><th>Header fields asked</th><th>Per-line ledger effect</th><th>Line validation</th><th>Seeded examples</th></tr>
+    <tr><td><span class="pill ADD">Addition</span></td><td>Unit, To register, reference (if any), party</td><td>+qty on (lot, toUnit, toReg). Lot may be a known lot (return to the same lot) or a brand-new lot typed on the line.</td><td>qty &gt; 0</td><td>Floor Return, Loan Receive (External), Stock Adjustment (+)</td></tr>
+    <tr><td><span class="pill DED">Deduction</span></td><td>Unit, From register, reference (if any), party</td><td>−qty on (lot, fromUnit, fromReg)</td><td>qty ≤ Available of that cell (balance − committed)</td><td>Knitting Issue, YD Issue, Sample Issue, Loan Return, Adjustment (−)</td></tr>
+    <tr><td><span class="pill BOTH">Both</span></td><td>Unit (or From Unit + To Unit when multi-unit), From register, To register</td><td>−qty on From cell and +qty on To cell — same lot, same document, two rows on the lot ledger</td><td>qty ≤ Available on the From cell; From cell ≠ To cell</td><td>Projection to Allocated, Inter-Unit Transfer, Loan Issue (Inter-Unit), Left Over to Liability</td></tr>
+    <tr><td><span class="pill CONV">Form Conversion</span></td><td>Unit, register (one cell)</td><td>Intake −n cartons (cones, kg) and Lose +n cartons (cones, kg) on the same cell; kg unchanged</td><td>n ≤ Available intake cartons of the lot</td><td>Carton Break</td></tr>
+  </table>
+  <p>Because every mode resolves to one of these three effects, the engine is ~20 lines and never changes when a new mode is added. The legacy workbook's ~60 “mode of transaction” codes across seven sheets all map onto this table.</p>
+
+  <h2>5 · Daily Transaction — one interface, mode-driven</h2>
+  <div class="flow">
+    <div class="box"><b>1 · Mode</b>One dropdown; a detail card shows type, flow, reference, approval flag</div><div class="a">&#8594;</div>
+    <div class="box"><b>2 · Header</b>Only the sides the type needs; registers limited to the mode's ticks</div><div class="a">&#8594;</div>
+    <div class="box"><b>3 · Yarn rows</b>Reference sets the rows; “Pick from stock” modal per yarn (several lots / locations with qty). No reference: “Add Yarn” modal, then the same pick</div><div class="a">&#8594;</div>
+    <div class="box"><b>4 · Impact</b>Before → after per register cell, then Save Draft / Submit</div>
+  </div>
+  <h4>Document lifecycle</h4>
+  <table class="spec">
+    <tr><th>Status</th><th>Who</th><th>Stock effect</th><th>Allowed actions</th></tr>
+    <tr><td>Draft</td><td>Store user</td><td>none</td><td>Edit, Submit, (discard)</td></tr>
+    <tr><td>Pending Approval</td><td>Store user submitted; Store Manager owns</td><td>none, but deductions are <b>Committed</b> — Available shrinks so nobody double-issues</td><td>Approve &amp; Post, Reject (with reason); single or bulk from the list</td></tr>
+    <tr><td>Approved</td><td>Store Manager (or auto when the mode needs no approval)</td><td>ledger effects written; document immutable</td><td>View, print, lot ledger</td></tr>
+    <tr><td>Rejected</td><td>Store Manager</td><td>none; commitment released</td><td>View; user re-enters a new document</td></tr>
+  </table>
+  <h4>Entry validations (from the mode + stock)</h4>
+  <ul>
+    <li>From / To register must be among the mode's ticked registers; unit rule follows Multi Unit.</li>
+    <li>Reference document mandatory when the mode says so; the list offers only open documents of that type.</li>
+    <li>Every deduction line ≤ Available of (lot, unit, register). Available already excludes Pending Approval commitments.</li>
+    <li>Adjustment modes require evidence text in Remarks and always go through approval.</li>
+    <li>Changing mode, unit or From register after lines exist clears the lines — the lots were valid only for that cell.</li>
+  </ul>
+  <h4>Yarn rows and stock picking</h4>
+  <ul>
+    <li><b>With a reference</b> (Knitting / YD Requisition, Transfer Requisition, Loan Issue Request) — selecting the document copies unit, party and order and sets one <b>yarn row</b> per line with description, spinner, lot, physical count and required quantity. Each row has a <b>Pick from stock</b> button opening a modal that lists that yarn's lots / locations in the From cell with balance and available; the user ticks several, types a quantity per lot (an Auto-pick FIFO button fills them by receipt date) and presses OK. The row shows the picked lots and the summed quantity, flagged when short of or over the reference.</li>
+    <li><b>Return Note, Loan Receive Request</b> (Addition) — the document names the lot, so the row becomes the line directly; Edit reopens it in the add-yarn modal.</li>
+    <li><b>Without a reference</b> — an <b>Add Yarn</b> button opens a modal. For Deduction / Both it lists yarns with available stock in the From cell; selecting one adds the row and opens the same pick modal. For Addition it asks yarn, spinner, lot (known or new), count and quantity.</li>
+    <li>The ledger always posts lot-level lines, so a yarn row picked from three lots writes three ledger effects and shows as three grid rows in the list.</li>
+  </ul>
+
+  <h2>5b · Yarn Requisition — the floor asks, MCD approves, the store issues</h2>
+  <div class="flow">
+    <div class="box"><b>Pending</b>Fabric booking yarn lines with balance (Yarn Booking Qty − Requisition Created Qty)</div><div class="a">&#8594;</div>
+    <div class="box b"><b>Create</b>Tick booking yarn lines → header (company, floor, YD?) + booking list + one item row per booking yarn; Requisition Qty ≤ Pending</div><div class="a">&#8594;</div>
+    <div class="box o"><b>Submit to MCD</b>Pending at MCD → MCD Approve / Reject (reason)</div><div class="a">&#8594;</div>
+    <div class="box g"><b>Approved List</b>Published as a Knitting / YD Requisition reference → Daily Transaction issues against it</div><div class="a">&#8594;</div>
+    <div class="box p"><b>Acknowledge</b>When issued ≥ requested the floor acknowledges receipt; reference closes</div>
+  </div>
+  <table class="spec">
+    <tr><th>Item row field</th><th>Source</th></tr>
+    <tr><td>Concept No, Composition, Yarn Type, Count, Shade Code</td><td>Knitting concept and its yarn line (Knitting Planning)</td></tr>
+    <tr><td>Process, Sub Process, Quality Parameter</td><td>Yarn master (Ring Spinning / Carded / Conta Free in the demo)</td></tr>
+    <tr><td>Spinner, Physical Lot, Physical Count</td><td>Only the lots <b>allocated to that booking</b> in the Allocated register are offered; choosing the lot sets the spinner, or choosing the spinner filters the lots. One row per lot — copy the row to take the same yarn from a second allocated lot.</td></tr>
+    <tr><td>Allocated Qty</td><td>Allocation of the chosen lot to that booking (Pending grid: total allocation of the booking yarn)</td></tr>
+    <tr><td>Submitted Req. Qty / Pending Qty</td><td>Already requisitioned on that lot / allocation − requisitioned on that lot. Requisition Qty can never exceed it, so a requisition can never exceed the allocation.</td></tr>
+    <tr><td>Balanced Quantity (Pending grid)</td><td>Allocated Qty − Issued Qty − requisition quantity not yet issued</td></tr>
+    <tr><td>Grey vs YD</td><td>Grey yarn and YD (to-be-dyed) yarn live in different stores, so a requisition holds one kind only; the YD flag is set by the yarn, not by hand, and Add Item offers only matching lines</td></tr>
+    <tr><td>Req Qty / Req Cone</td><td>Entered; cone proposed at 1.8 kg per cone</td></tr>
+  </table>
+  <p>Statuses: Draft → Submitted (Pending at MCD) → Approved | Rejected (editable, resubmit) → Acknowledged. Approved requisitions are the only Knitting / YD Requisition references Daily Transaction offers, so nothing is issued without MCD's approval.</p>
+
+  <h2>6 · How stock is managed</h2>
+  <div class="kv">
+    <b>Stock cell</b><span>(lot, unit, register). A lot can sit in several cells at once, e.g. 2,400 kg Allocated + 600 kg M&amp;M Projection in EFL.</span>
+    <b>Balance</b><span>Opening balance + Σ ledger effects of Approved documents dated ≤ as-of date. Never stored, always recomputed, so the ledger can be re-run for any date.</span>
+    <b>Committed</b><span>Σ deductions of Pending Approval documents on that cell.</span>
+    <b>Available</b><span>Balance − Committed. This is the number the entry screen validates against and the pick-list shows.</span>
+    <b>Lot ledger</b><span>Opening + every effect on that lot in date order with a running balance; a transfer shows Out and In on the same document number.</span>
+    <b>Statement</b><span>Per register: opening (before From date), In, Out, Closing and the modes that moved it — the monthly stock statement the Excel sheets produced by hand.</span>
+  </div>
+
+  <h2>7 · Dashboard insight rules</h2>
+  <table class="spec">
+    <tr><th>Insight</th><th>Rule</th><th>Action it points to</th></tr>
+    <tr><td>Approval backlog</td><td>Pending Approval documents older than 1 day</td><td>Pending Approval list</td></tr>
+    <tr><td>Idle Left Over</td><td>Left Over cells with no movement for 45 days</td><td>Left Over to Liability, reuse on order, or Adjustment (−)</td></tr>
+    <tr><td>Projection ageing</td><td>M&amp;M / Textile Projection lots received &gt; 90 days ago</td><td>Merchandising review, Projection to Allocated</td></tr>
+    <tr><td>Liability outstanding</td><td>Any balance in Liability, per unit</td><td>Loan Return</td></tr>
+    <tr><td>Fragment lots</td><td>Cells under 100 kg</td><td>Consolidate / issue with next requisition</td></tr>
+    <tr><td>Count deviation</td><td>|physical count − nominal count| &gt; 0.25</td><td>QC re-test before production issue</td></tr>
+    <tr><td>Allocation coverage</td><td>Allocated ÷ total stock; days of cover = Allocated ÷ average daily issue (30 days)</td><td>Confirm orders, run Projection to Allocated</td></tr>
+  </table>
+
+  <h2>8 · Seeded transaction mode catalogue</h2>
+  <p>Loaded as demo data on the Setup page. Every row is editable there; the entry screen picks the change up immediately.</p>
+  <table class="spec" id="catalogue"></table>
+
+  <h2>9 · From the legacy workbook to this design</h2>
+  <table class="spec">
+    <tr><th>Legacy (Raw Materials Database – Grey Yarn.xlsb)</th><th>This module</th></tr>
+    <tr><td>Seven register sheets with one 103-column layout (Advance, Allocated ×3, Sample, Sample-R&amp;D, Liability, Firmed Projection, Buyer's Deal)</td><td>Six Stock Registers as a master; a lot's position is a cell, not a sheet row. Advance + Firmed Projection → M&amp;M / Textile Projection; Buyer's Deal → Liability or Allocated by ownership; Sample-R&amp;D → Sample.</td></tr>
+    <tr><td>~60 “Mode of Transaction” codes explained on the Elaboration sheet</td><td>Transaction Modes set up once, each resolving to Addition / Deduction / Both with explicit registers — the Elaboration sheet becomes the Setup list.</td></tr>
+    <tr><td>Transfers keyed twice (out on one sheet, in on another)</td><td>One Both-type document writes both legs; the lot ledger shows them together.</td></tr>
+    <tr><td>Stock = Net Receive − Net Allocated, recomputed by formula per sheet</td><td>Balance per cell = opening + approved effects, recomputable for any date; Available excludes pending commitments.</td></tr>
+    <tr><td>No approval trail</td><td>Draft → Pending → Approved / Rejected with names and dates on the document.</td></tr>
+  </table>
+
+  <h2>10 · Decisions to confirm</h2>
+  <ol>
+    <li><b>Loan between units</b>: modelled as one Both-type document (lender's register → borrower's Liability). If each unit must book independently, keep Loan Issue Request and Loan Receive Request as two Addition / Deduction modes instead.</li>
+    <li><b>Receipt from spinner</b> stays in the MRIR / GRN module; this module starts after GRN. If a “Yarn Receive” mode is wanted here for opening or non-PO stock, it is a plain Addition mode.</li>
+    <li><b>Who approves</b>: currently one role (Store Manager). Per-mode approver or amount-based approval is a small extension of the Approval Required flag.</li>
+    <li><b>Physical Count</b> is carried per lot from receipt; if it must be re-entered per transaction (as the reference grid suggests), the line keeps its own value — the entry screen already allows this for new lots.</li>
+    <li><b>Register master</b> is fixed at six here; if stores need to add registers themselves, TM_01's Stock Registers tab becomes editable with the same activate / deactivate rule as modes.</li>
+  </ol>
+</div>
+
+<script>
+renderChrome('design');
+$('catalogue').innerHTML='<tr><th>Code</th><th>Mode</th><th>Type</th><th>From</th><th>To</th><th>Multi unit</th><th>Reference</th><th>Approval</th><th>Used for</th></tr>'+MODES.map(m=>`<tr ${m.active?'':'style="opacity:.55"'}><td class="mono">${m.code}</td><td><b>${esc(m.name)}</b> <span class="muted">${esc(m.short)}</span></td><td>${typePill(m.type)}</td><td>${m.type==='ADD'?'—':m.fromRegs.map(regCode).join(' ')}</td><td>${m.type==='DED'?'—':m.toRegs.map(regCode).join(' ')}</td><td>${m.multiUnit?'Yes':'No'}</td><td>${m.hasRef?esc(REFI[m.refInput].name):'N/A'}</td><td>${m.approval?'Yes':'No'}</td><td class="muted">${esc(m.note||'')}${m.active?'':' (inactive)'}</td></tr>`).join('');
+</script>
+</body>
+</html>

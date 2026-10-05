@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Transaction Mode Setup — Yarn Stock Management</title>
+<link rel="stylesheet" href="assets/tm-ui.css">
+<script src="assets/tm-app.js"></script>
+</head>
+<body>
+<div id="chrome"></div>
+
+<div class="page">
+  <!-- ============ LIST ============ -->
+  <div id="listView">
+    <h1 class="title">Transaction Mode Setup <span class="deptBadge">SETUP</span></h1>
+    <div class="subtitle">Define every kind of stock movement once. Daily Transaction only offers what is set up here, and the stock registers move exactly as the mode says.</div>
+
+    <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+      <div class="kpi k-green"><div><div class="num" id="k-modes">0</div><div class="lbl">Active modes</div></div></div>
+      <div class="kpi k-blue"><div><div class="num" id="k-add">0</div><div class="lbl">Addition</div></div></div>
+      <div class="kpi k-orange"><div><div class="num" id="k-ded">0</div><div class="lbl">Deduction</div></div></div>
+      <div class="kpi k-purple"><div><div class="num" id="k-both">0</div><div class="lbl">Both (movement)</div></div></div>
+      <div class="kpi k-red"><div><div class="num" id="k-appr">0</div><div class="lbl">Need approval</div></div></div>
+    </div>
+
+    <div class="subtabs" id="tabs">
+      <button class="subtab active" data-t="modes">Transaction Mode List <span class="badge" id="tc-modes">0</span></button>
+      <button class="subtab" data-t="regs">Stock Registers <span class="badge" id="tc-regs">0</span></button>
+      <button class="subtab" data-t="refs">Reference Inputs <span class="badge" id="tc-refs">0</span></button>
+    </div>
+
+    <!-- modes -->
+    <div class="gridCard" id="tab-modes">
+      <div class="toolbar">
+        <input type="text" class="search" id="q" placeholder="🔍 Code, name, short name, register…">
+        <span class="lbl">Type</span><select id="f-type"><option value="">All</option><option value="ADD">Addition</option><option value="DED">Deduction</option><option value="BOTH">Both</option></select>
+        <span class="lbl">Status</span><select id="f-status"><option value="">All</option><option value="1" selected>Active</option><option value="0">Inactive</option></select>
+        <span class="sp"></span>
+        <button class="btn warn" onclick="openForm()">&#43; Create New</button>
+      </div>
+      <div class="tableScroll">
+        <table class="list wide">
+          <thead><tr><th>Manage</th><th class="f">Code</th><th class="f">Transaction Name</th><th>Short Name</th><th>Type</th><th>From Stock Register</th><th>To Stock Register</th><th>Multi Unit</th><th>Reference Input</th><th>Approval</th><th>Status</th><th>Used</th></tr></thead>
+          <tbody id="tb-modes"></tbody>
+        </table>
+      </div>
+      <div class="pager" id="pg-modes"></div>
+    </div>
+
+    <!-- registers -->
+    <div class="gridCard hidden" id="tab-regs">
+      <div class="toolbar"><span class="lbl">Stock registers are the buckets every kilogram sits in. A transaction mode names which buckets it may take from and put into.</span><span class="sp"></span><button class="btn ghost sm" onclick="toast('Register master is maintained by ICT (mock)','warn')">&#43; Add Register</button></div>
+      <div class="tableScroll"><table class="list">
+        <thead><tr><th>Code</th><th>Register Name</th><th>Meaning</th><th>Used as From in</th><th>Used as To in</th><th class="right">Stock now (kg)</th><th class="right">Lots</th><th>Status</th></tr></thead>
+        <tbody id="tb-regs"></tbody></table></div>
+    </div>
+
+    <!-- reference inputs -->
+    <div class="gridCard hidden" id="tab-refs">
+      <div class="toolbar"><span class="lbl">A reference input is the upstream document a transaction must cite. Selecting it in Daily Transaction pre-fills the yarn lines.</span><span class="sp"></span><button class="btn ghost sm" onclick="toast('Reference input master is maintained by ICT (mock)','warn')">&#43; Add Reference Input</button></div>
+      <div class="tableScroll"><table class="list">
+        <thead><tr><th>Key</th><th>Reference Input</th><th>Comes from</th><th>Doc. prefix</th><th>Used by modes</th><th class="right">Open documents</th><th>What it pre-fills</th></tr></thead>
+        <tbody id="tb-refs"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ============ FORM ============ -->
+  <div id="formView" class="formView hidden">
+    <div class="formTop">
+      <h2 id="f-title">New Transaction Mode <span class="no" id="f-code-pill"></span></h2>
+      <span class="sp"></span>
+      <button class="btn ghost" onclick="closeForm()">Cancel</button>
+      <button class="btn blue" id="btn-deact" onclick="toggleActive()">Deactivate</button>
+      <button class="btn primary" onclick="saveMode()">&#128190; Save Mode</button>
+    </div>
+
+    <div class="setupGrid">
+      <!-- left: identity -->
+      <div class="card"><div class="cardHead"><h3>Identity</h3></div><div class="cardBody">
+        <div class="fields">
+          <div class="fld"><label>Transaction Code</label><input id="m-code" class="readonly" readonly placeholder="Auto (TM-###)"></div>
+          <div class="fld"><label>Transaction Name <span class="req">*</span></label><input id="m-name" placeholder="e.g. Knitting Issue" oninput="preview()"></div>
+          <div class="fld"><label>Transaction Short Name <span class="req">*</span></label><input id="m-short" placeholder="e.g. KN-ISS" maxlength="8" style="text-transform:uppercase" oninput="preview()"></div>
+          <div class="fld"><label>Description / when to use</label><textarea id="m-note" rows="2" placeholder="One line the store user will see when choosing this mode"></textarea></div>
+        </div>
+        <div class="secTitle">Behaviour</div>
+        <label class="chkRow"><input type="checkbox" id="m-multi" onchange="preview()"> <span>Transaction within Multi Unit?</span><span class="hint">From Unit and To Unit may differ (EFL / EKL / ESL)</span></label>
+        <label class="chkRow"><input type="checkbox" id="m-hasref" onchange="refToggle()"> <span>Has Any Reference Input</span><span class="hint">User must cite an upstream document</span></label>
+        <div class="fld" id="m-ref-fld" style="margin:2px 0 8px 26px"><label>Reference Input</label><select id="m-ref" onchange="preview()"></select></div>
+        <label class="chkRow"><input type="checkbox" id="m-appr" onchange="preview()"> <span>Approval Required <span class="deptBadge ref" style="margin-left:4px">RECOMMENDED</span></span><span class="hint">Store Manager approves before stock moves</span></label>
+        <label class="chkRow"><input type="checkbox" id="m-active" checked onchange="preview()"> <span>Active</span><span class="hint">Inactive modes stay in history but cannot be selected</span></label>
+      </div></div>
+
+      <!-- right: type + registers -->
+      <div>
+        <div class="card"><div class="cardHead"><h3>Transaction Type <span class="req">*</span></h3><span class="lnk muted">decides which register side applies</span></div><div class="cardBody">
+          <div class="typeSeg" id="typeSeg">
+            <label class="ADD"><input type="radio" name="mtype" value="ADD" onchange="typeChange()"><div><b>Addition</b><span>Stock comes in — only the <u>To</u> register applies</span></div></label>
+            <label class="DED"><input type="radio" name="mtype" value="DED" onchange="typeChange()"><div><b>Deduction</b><span>Stock goes out — only the <u>From</u> register applies</span></div></label>
+            <label class="BOTH"><input type="radio" name="mtype" value="BOTH" onchange="typeChange()"><div><b>Both (Addition / Deduction)</b><span>Movement — deducted From, added To, one document</span></div></label>
+            <label class="CONV"><input type="radio" name="mtype" value="CONV" onchange="typeChange()"><div><b>Form Conversion</b><span>Same register cell — <u>Intake</u> cartons become <u>Lose</u> (carton break); kg unchanged</span></div></label>
+          </div>
+        </div></div>
+
+        <div class="card" style="margin-top:12px"><div class="cardHead"><h3>Allowed Stock Registers</h3><span class="lnk muted">tick every register this mode may touch; the user picks one of them per document</span></div><div class="cardBody">
+          <div class="regPick">
+            <div class="regBox" id="box-from"><div class="hd">From Stock Register <span class="all" onclick="selAll('from')">Select all</span></div><div id="rows-from"></div></div>
+            <div class="regBox" id="box-to"><div class="hd">To Stock Register <span class="all" onclick="selAll('to')">Select all</span></div><div id="rows-to"></div></div>
+          </div>
+        </div></div>
+
+        <div class="rulePreview" style="margin-top:12px" id="rule"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+renderChrome('setup');
+let editing=null, tab='modes';
+
+/* ---------- list ---------- */
+function usedCount(code){return TXNS.filter(t=>t.mode===code).length}
+function refresh(){
+  const act=MODES.filter(m=>m.active);
+  $('k-modes').textContent=act.length;$('k-add').textContent=act.filter(m=>m.type==='ADD').length;$('k-ded').textContent=act.filter(m=>m.type==='DED').length;
+  $('k-both').textContent=act.filter(m=>m.type==='BOTH').length;$('k-appr').textContent=act.filter(m=>m.approval).length;
+  $('tc-modes').textContent=MODES.length;$('tc-regs').textContent=REGISTERS.length;$('tc-refs').textContent=REF_INPUTS.length-1;
+  renderModes();renderRegs();renderRefs();
+}
+function renderModes(){
+  const q=($('q').value||'').toLowerCase(),ty=$('f-type').value,st=$('f-status').value;
+  const rows=MODES.filter(m=>(!ty||m.type===ty)&&(st===''||(st==='1')===m.active)&&(!q||[m.code,m.name,m.short,m.fromRegs.join(' '),m.toRegs.join(' '),REFI[m.refInput]?.name].join(' ').toLowerCase().includes(q)));
+  const slice=pager('modes',rows);
+  $('tb-modes').innerHTML=slice.map(m=>`<tr class="dataRow">
+    <td><a class="view-link" onclick="openForm('${m.code}',true)">View</a>, <a class="view-link" onclick="openForm('${m.code}')">Edit</a></td>
+    <td class="mono">${m.code}</td><td><b>${esc(m.name)}</b><div class="muted" style="font-size:11px">${esc(m.note||'')}</div></td><td class="mono">${esc(m.short)}</td><td>${typePill(m.type)}</td>
+    <td>${m.type==='ADD'?'<span class="muted">—</span>':m.fromRegs.map(regCode).join(' ')}</td><td>${m.type==='DED'?'<span class="muted">—</span>':m.type==='CONV'?'<span class="muted">same cell · Intake &#8594; Lose</span>':m.toRegs.map(regCode).join(' ')}</td>
+    <td>${yn(m.multiUnit)}</td><td>${m.hasRef?esc(REFI[m.refInput]?.name||m.refInput):'<span class="muted">N/A</span>'}</td><td>${yn(m.approval)}</td>
+    <td>${m.active?'<span class="pill approved">Active</span>':'<span class="pill inactive">Inactive</span>'}</td><td class="num">${usedCount(m.code)}</td></tr>`).join('')
+    ||'<tr><td colspan="12" class="muted" style="text-align:center;padding:16px">No transaction mode matches</td></tr>';
+}
+function renderRegs(){
+  const b=balances(),rows=stockRows(b);
+  $('tb-regs').innerHTML=REGISTERS.map(r=>{const from=MODES.filter(m=>m.active&&m.type!=='ADD'&&m.fromRegs.includes(r.code)),to=MODES.filter(m=>m.active&&m.type!=='DED'&&m.toRegs.includes(r.code));
+    const rr=rows.filter(x=>x.reg===r.code);
+    return `<tr class="dataRow"><td>${regCode(r.code)}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.desc)}</td><td>${from.map(m=>`<span class="pill draft" title="${esc(m.name)}">${esc(m.short)}</span>`).join(' ')||'<span class="muted">—</span>'}</td><td>${to.map(m=>`<span class="pill draft" title="${esc(m.name)}">${esc(m.short)}</span>`).join(' ')||'<span class="muted">—</span>'}</td>
+    <td class="num"><a class="view-link" href="${PAGES.ledger.file}?reg=${r.code}">${fmt(rr.reduce((a,x)=>a+x.qty,0))}</a></td><td class="num">${rr.length}</td><td><span class="pill approved">Active</span></td></tr>`}).join('');
+}
+function renderRefs(){
+  $('tb-refs').innerHTML=REF_INPUTS.filter(r=>r.key!=='NA').map(r=>{const used=MODES.filter(m=>m.active&&m.hasRef&&m.refInput===r.key);const open=REFDOCS.filter(d=>d.type===r.key&&d.status==='Open').length;
+    const fills={KNR:'Unit, party, order and yarn lines; lots proposed FIFO from the From register',YDR:'Unit, party, order and yarn lines; lots proposed FIFO',TRR:'From / To unit and yarn lines',RTN:'Unit, party, returned lot and quantity',LRR:'Unit, lender party, yarn, lot and quantity',LIR:'From / To unit, borrower, yarn lines'}[r.key]||'';
+    return `<tr class="dataRow"><td class="mono">${r.key}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.src)}</td><td class="mono">${r.prefix}-26-####</td><td>${used.map(m=>`<span class="pill draft" title="${esc(m.name)}">${esc(m.short)}</span>`).join(' ')||'<span class="muted">—</span>'}</td><td class="num">${open}</td><td class="muted">${fills}</td></tr>`}).join('');
+}
+['q','f-type','f-status'].forEach(id=>$(id).addEventListener('input',()=>{PG.modes.page=1;renderModes()}));
+pagerBind('modes',renderModes);
+document.querySelectorAll('#tabs .subtab').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs .subtab').forEach(x=>x.classList.remove('active'));b.classList.add('active');tab=b.dataset.t;['modes','regs','refs'].forEach(t=>$('tab-'+t).classList.toggle('hidden',t!==tab))});
+
+/* ---------- form ---------- */
+function regRows(side){return REGISTERS.map(r=>`<label class="row"><input type="checkbox" data-side="${side}" value="${r.code}" onchange="preview()"> ${regCode(r.code)} <span>${esc(r.name)}</span><span class="d">${esc(r.desc)}</span></label>`).join('')}
+$('rows-from').innerHTML=regRows('from');$('rows-to').innerHTML=regRows('to');
+$('m-ref').innerHTML=REF_INPUTS.map(r=>`<option value="${r.key}">${esc(r.name)}</option>`).join('');
+const picked=side=>[...document.querySelectorAll(`input[data-side=${side}]:checked`)].map(i=>i.value);
+const curType=()=>(document.querySelector('input[name=mtype]:checked')||{}).value||'';
+function selAll(side){const all=[...document.querySelectorAll(`input[data-side=${side}]`)];const on=all.every(i=>i.checked);all.forEach(i=>i.checked=!on);preview()}
+function typeChange(){const t=curType();document.querySelectorAll('#typeSeg label').forEach(l=>l.classList.toggle('on',l.classList.contains(t)));
+  $('box-from').classList.toggle('off',t==='ADD');$('box-to').classList.toggle('off',t==='DED'||t==='CONV');preview()}
+function refToggle(){const on=$('m-hasref').checked;$('m-ref').disabled=!on;if(!on)$('m-ref').value='NA';else if($('m-ref').value==='NA')$('m-ref').value='KNR';preview()}
+function preview(){
+  const t=curType(),f=picked('from'),to=picked('to'),multi=$('m-multi').checked,ref=$('m-hasref').checked?REFI[$('m-ref').value]:null,appr=$('m-appr').checked;
+  const name=$('m-name').value||'this mode',rl=a=>a.length?a.map(regCode).join(' '):'<span class="bad">no register ticked</span>';
+  let s=`<span class="lbl">How Daily Transaction will behave for <b>${esc(name)}</b></span>`;
+  if(!t)s+='<span class="bad">Choose a transaction type.</span>';
+  else if(t==='ADD')s+=`Stock is <b>added</b> to one of ${rl(to)} in the ${multi?'<b>To Unit</b> chosen on the document':'<b>unit</b> chosen on the document'}. No From side is asked.`;
+  else if(t==='DED')s+=`Stock is <b>deducted</b> from one of ${rl(f)} in the ${multi?'<b>From Unit</b> chosen on the document':'<b>unit</b> chosen on the document'}. Each line is checked against the lot's <b>Available</b> balance in that register, per form (Intake carton / cone / kg and Lose carton / cone / kg). No To side is asked.`;
+  else if(t==='CONV')s+=`Within one cell of ${rl(f)}: the cartons the user opens move from <b>Intake</b> form to <b>Lose</b> form (carton, cone and kg follow the lot packing). Register kg does not change, so no To side is asked.`;
+  else s+=`Each line is <b>deducted</b> from one of ${rl(f)} and <b>added</b> to one of ${rl(to)} in the same document — two ledger legs per line. ${multi?'From Unit and To Unit <b>may differ</b> (inter-unit movement; same register on both sides allowed).':'Both legs stay in the <b>same unit</b>; From and To register must differ.'}`;
+  s+='<br>'+(ref?`The user must cite a <b>${esc(ref.name)}</b>; its lines pre-fill the document.`:'No reference document is required — free entry.');
+  s+=' '+(appr?'Submitting sends it to <b>Pending Approval</b>; stock moves only when the Store Manager approves.':'Submitting <b>posts immediately</b> — stock registers update at once.');
+  if(!$('m-active').checked)s+=' <span class="bad">Mode is inactive and will not be offered.</span>';
+  $('rule').innerHTML=s;
+}
+function openForm(code,readOnly){
+  editing=code?MODES.find(m=>m.code===code):null;
+  const m=editing||{code:'',name:'',short:'',note:'',type:'',multiUnit:false,hasRef:false,refInput:'NA',fromRegs:[],toRegs:[],approval:false,active:true};
+  $('f-title').firstChild.textContent=editing?(readOnly?'View Transaction Mode ':'Edit Transaction Mode '):'New Transaction Mode ';$('f-code-pill').textContent=m.code;
+  $('m-code').value=m.code||('TM-'+String(SEQ.TM).padStart(3,'0')+' (auto)');$('m-name').value=m.name;$('m-short').value=m.short;$('m-note').value=m.note||'';
+  $('m-multi').checked=m.multiUnit;$('m-hasref').checked=m.hasRef;$('m-ref').value=m.refInput||'NA';$('m-appr').checked=m.approval;$('m-active').checked=m.active;
+  document.querySelectorAll('input[name=mtype]').forEach(r=>r.checked=r.value===m.type);
+  document.querySelectorAll('input[data-side]').forEach(i=>i.checked=(i.dataset.side==='from'?m.fromRegs:m.toRegs).includes(i.value));
+  $('btn-deact').classList.toggle('hidden',!editing);$('btn-deact').textContent=m.active?'Deactivate':'Re-activate';
+  refToggle();typeChange();
+  $('listView').classList.add('hidden');$('formView').classList.remove('hidden');window.scrollTo(0,0);
+  if(readOnly)toast('Viewing '+m.code+' — press Save Mode to keep any change','');
+}
+function closeForm(){$('formView').classList.add('hidden');$('listView').classList.remove('hidden');editing=null;refresh()}
+function toggleActive(){if(!editing)return;editing.active=!editing.active;saveDB();toast(editing.code+(editing.active?' re-activated':' deactivated — history kept, no longer selectable'),'success');closeForm()}
+function saveMode(){
+  const t=curType(),f=picked('from'),to=picked('to'),err=[];
+  const name=$('m-name').value.trim(),short=$('m-short').value.trim().toUpperCase();
+  if(!name)err.push('Transaction Name is required');if(!short)err.push('Short Name is required');
+  if(MODES.some(m=>m!==editing&&(m.short.toUpperCase()===short||m.name.toLowerCase()===name.toLowerCase())))err.push('A mode with the same name or short name already exists');
+  if(!t)err.push('Choose a Transaction Type');
+  if(t&&t!=='ADD'&&!f.length)err.push('Tick at least one From Stock Register');
+  if(t&&t!=='DED'&&t!=='CONV'&&!to.length)err.push('Tick at least one To Stock Register');
+  if(t==='BOTH'&&!$('m-multi').checked&&f.length===1&&to.length===1&&f[0]===to[0])err.push('From and To are the same single register — nothing could move without Multi Unit');
+  if($('m-hasref').checked&&$('m-ref').value==='NA')err.push('Pick a Reference Input or untick “Has Any Reference Input”');
+  if(err.length){toast(err[0],'error');return}
+  const rec={name,short,note:$('m-note').value.trim(),type:t,multiUnit:$('m-multi').checked,hasRef:$('m-hasref').checked,refInput:$('m-hasref').checked?$('m-ref').value:'NA',fromRegs:t==='ADD'?[]:f,toRegs:(t==='DED'||t==='CONV')?[]:to,approval:$('m-appr').checked,active:$('m-active').checked};
+  if(editing){Object.assign(editing,rec);saveDB();toast(editing.code+' updated','success');closeForm();return}
+  rec.code='TM-'+String(SEQ.TM++).padStart(3,'0');MODES.push(rec);saveDB();
+  closeForm();showSuccess('Transaction Mode saved',rec.code,`<b>${esc(rec.name)}</b> (${esc(rec.short)}) is now available in Daily Transaction.`,`<a href="${PAGES.txn.file}?new=1&mode=${rec.code}">Create a ${esc(rec.name)} transaction</a> to try it.`);
+}
+refresh();
+if(new URLSearchParams(location.search).get('new'))openForm();
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stock Register Ledger — Yarn Stock Management</title>
+<link rel="stylesheet" href="assets/tm-ui.css">
+<script src="assets/tm-app.js"></script>
+</head>
+<body>
+<div id="chrome"></div>
+
+<div class="page">
+  <h1 class="title">Stock Register Ledger <span class="deptBadge ref">REPORT</span></h1>
+  <div class="subtitle">Every kilogram sits in one (lot, unit, register) cell. Balance = opening + every approved transaction; Available = balance − quantities committed in Pending Approval documents.</div>
+
+  <div class="kpis" id="regKpis"></div>
+
+  <div class="subtabs" id="tabs">
+    <button class="subtab active" data-t="lots">Lot-wise Balance</button>
+    <button class="subtab" data-t="stmt">Register Movement Statement</button>
+  </div>
+
+  <!-- lots -->
+  <div class="gridCard" id="tab-lots">
+    <div class="toolbar">
+      <input type="text" class="search" id="q" placeholder="🔍 Yarn, lot, spinner…">
+      <span class="lbl">Unit</span><select id="f-unit"></select>
+      <span class="lbl">Register</span><select id="f-reg"></select>
+      <span class="lbl">Yarn</span><select id="f-yarn"></select>
+      <span class="lbl">As of</span><input type="date" id="f-asof">
+      <label class="lbl" style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="f-zero"> show nil</label>
+      <button class="btn ghost sm" onclick="resetF()">Reset</button>
+      <span class="sp"></span>
+      <button class="btn ghost sm" onclick="window.print()">&#128424; Print</button>
+      <a class="btn warn sm" href="TM_02_Daily_Transaction.html?new=1">&#43; New Transaction</a>
+    </div>
+    <div class="tableScroll"><table class="list wide">
+      <thead>
+        <tr><th class="f" rowspan="2">Yarn Description</th><th rowspan="2">Spinner</th><th class="f" rowspan="2">Physical Lot</th><th rowspan="2">Phy. Count</th><th rowspan="2">Packing</th><th rowspan="2">Unit</th><th rowspan="2">Stock Register</th><th colspan="3" class="pkGrp">Intake</th><th colspan="3" class="pkGrp l">Lose</th><th class="right" rowspan="2">Balance (kg)</th><th class="right" rowspan="2">Committed</th><th class="right" rowspan="2">Available</th><th rowspan="2">Last Movement</th><th class="right" rowspan="2">Idle days</th><th rowspan="2">Manage</th></tr>
+        <tr><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th></tr>
+      </thead>
+      <tbody id="tb"></tbody>
+      <tfoot><tr><td colspan="7" class="right"><b>Total (filtered)</b></td><td colspan="6" id="t-pack"></td><td class="num"><b id="t-bal"></b></td><td class="num" id="t-com"></td><td class="num"><b id="t-av"></b></td><td colspan="3"></td></tr></tfoot>
+    </table></div>
+    <div class="pager" id="pg-lots"></div>
+  </div>
+
+  <!-- statement -->
+  <div class="gridCard hidden" id="tab-stmt">
+    <div class="toolbar">
+      <span class="lbl">Unit</span><select id="s-unit"></select>
+      <span class="lbl">From</span><input type="date" id="s-from"><span class="lbl">To</span><input type="date" id="s-to">
+      <span class="lbl muted">Opening is the balance before the From date; Closing = Opening + In − Out</span>
+      <span class="sp"></span><button class="btn ghost sm" onclick="window.print()">&#128424; Print</button>
+    </div>
+    <div class="tableScroll"><table class="list">
+      <thead><tr><th>Stock Register</th><th>Meaning</th><th class="right">Opening (kg)</th><th class="right">In (+)</th><th class="right">Out (−)</th><th class="right">Closing (kg)</th><th class="right">Net change</th><th class="right">Docs</th><th>Movement by mode</th></tr></thead>
+      <tbody id="tb-stmt"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<script>
+renderChrome('ledger');
+const qs=new URLSearchParams(location.search);
+$('f-unit').innerHTML=opts(UNITS,qs.get('unit')||'','All');$('f-reg').innerHTML=regOpts(REG_CODES,qs.get('reg')||'','All');
+$('f-yarn').innerHTML='<option value="">All</option>'+Object.keys(YARNS).map(c=>`<option value="${c}">${esc(YARNS[c].count)} · ${esc(YARNS[c].desc)}</option>`).join('');
+$('s-unit').innerHTML=opts(UNITS,'','All units');$('s-from').value=addDays(TODAY,-30);$('s-to').value=TODAY;
+function resetF(){['q','f-unit','f-reg','f-yarn','f-asof'].forEach(id=>$(id).value='');$('f-zero').checked=false;renderLots()}
+document.querySelectorAll('#tabs .subtab').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs .subtab').forEach(x=>x.classList.remove('active'));b.classList.add('active');['lots','stmt'].forEach(t=>$('tab-'+t).classList.toggle('hidden',t!==b.dataset.t))});
+
+function refresh(){
+  const b=balances(),rows=stockRows(b);
+  $('regKpis').innerHTML=REGISTERS.map(r=>{const q=rows.filter(x=>x.reg===r.code).reduce((a,x)=>a+x.qty,0);return `<div class="kpi clickable" onclick="$('f-reg').value='${r.code}';renderLots()"><div><div class="num" style="color:${r.color}">${fmt0(q)}<small>kg</small></div><div class="lbl">${esc(r.name)}</div><div class="sub2">${(()=>{const p=rows.filter(x=>x.reg===r.code).reduce((a,x)=>pAdd(a,x.pack),P0());return p.iCtn+' ctn intake · '+p.lCone+' cone lose'})()}</div></div></div>`}).join('');
+  renderLots();renderStmt();
+}
+function renderLots(){
+  const asof=$('f-asof').value||'';const b=balances(asof||null),c=asof?{}:committed();
+  const q=($('q').value||'').toLowerCase(),fu=$('f-unit').value,fr=$('f-reg').value,fy=$('f-yarn').value,zero=$('f-zero').checked;
+  let rows=[];
+  LOTS.forEach(L=>UNITS.forEach(u=>REG_CODES.forEach(r=>{const bal=balanceOf(b,L.id,u,r);const seen=OPENING.some(o=>o.lot===L.id&&o.unit===u&&o.reg===r)||TXNS.some(t=>t.status==='Approved'&&effects(t).some(e=>e.lot===L.id&&e.unit===u&&e.reg===r));
+    if(!seen)return;const pack=packOf(b,L.id,u,r);if(!zero&&bal<=0.001&&pCone(pack)<=0)return;const com=pkg(c[bkey(L.id,u,r)]);rows.push({L,u,r,bal,pack,com,av:Math.max(0,bal-com),last:lastMoveOf(L.id,u,r)})})));
+  rows=rows.filter(x=>(!fu||x.u===fu)&&(!fr||x.r===fr)&&(!fy||x.L.yarnCode===fy)&&(!q||[yarn(x.L.yarnCode).desc,x.L.lot,x.L.spinner].join(' ').toLowerCase().includes(q)))
+    .sort((a,b)=>a.u.localeCompare(b.u)||REG_CODES.indexOf(a.r)-REG_CODES.indexOf(b.r)||a.L.yarnCode.localeCompare(b.L.yarnCode)||a.L.recv.localeCompare(b.L.recv));
+  $('t-bal').textContent=fmt(rows.reduce((a,x)=>a+x.bal,0));$('t-com').textContent=fmt(rows.reduce((a,x)=>a+x.com,0));$('t-av').textContent=fmt(rows.reduce((a,x)=>a+x.av,0));
+  $('t-pack').innerHTML='<div class="pkSum">'+pHtml(rows.reduce((a,x)=>pAdd(a,x.pack),P0()))+'</div>';
+  const slice=pager('lots',rows);
+  $('tb').innerHTML=slice.map(x=>{const y=yarn(x.L.yarnCode),idle=daysBetween(x.last,TODAY);return `<tr class="dataRow ${x.bal<=0.001?'sub':''}"><td class="yarn-name">${esc(y.desc)}</td><td>${esc(x.L.spinner)}</td><td class="mono">${esc(x.L.lot)}</td><td class="mono">${esc(x.L.count)}</td><td class="muted" style="font-size:11px">${x.L.cpc} cn/ctn · ${fmt(x.L.kpc)} kg/cn</td><td>${unitPill(x.u)}</td><td>${regPill(x.r)}</td>${pCells(x.pack)}
+    <td class="num"><b>${fmt(x.bal)}</b></td><td class="num ${x.com?'':'muted'}">${x.com?fmt(x.com):'—'}</td><td class="num">${fmt(x.av)}</td><td>${fmtDate(x.last)}</td><td class="num ${idle>45?'ledgerBal dn':''}">${idle}</td>
+    <td><a class="view-link" onclick="openLot(${x.L.id},'${x.u}','${x.r}')">Ledger</a>${x.pack.iCtn>0?`, <a class="view-link" href="TM_02_Daily_Transaction.html?new=1&mode=TM-014" title="Open cartons: Intake → Lose">Break ctn</a>`:''}${x.av>0?`, <a class="view-link" href="TM_02_Daily_Transaction.html?new=1">Transact</a>`:''}</td></tr>`}).join('')
+    ||'<tr><td colspan="19" class="muted" style="text-align:center;padding:16px">No lot matches</td></tr>';
+}
+['q','f-unit','f-reg','f-yarn','f-asof','f-zero'].forEach(id=>$(id).addEventListener('input',()=>{PG.lots.page=1;renderLots()}));
+pagerBind('lots',renderLots);
+function renderStmt(){
+  const u=$('s-unit').value,from=$('s-from').value,to=$('s-to').value;
+  const open=balances(addDays(from,-1)),close=balances(to);
+  const T={o:0,i:0,x:0,c:0,docs:new Set()};
+  $('tb-stmt').innerHTML=REGISTERS.map(r=>{
+    const sum=b=>Object.keys(b).filter(k=>{const p=k.split('|');return p[2]===r.code&&(!u||p[1]===u)}).reduce((a,k)=>a+pkg(b[k]),0);
+    let inn=0,out=0,docs=new Set(),byMode={};
+    TXNS.filter(t=>t.status==='Approved'&&t.date>=from&&t.date<=to).forEach(t=>effects(t).forEach(e=>{if(e.reg!==r.code||(u&&e.unit!==u))return;docs.add(t.no);T.docs.add(t.no);const m=mode(t.mode).short;if(!e.dkg){byMode[m]=(byMode[m]||0);return}byMode[m]=(byMode[m]||0)+e.dkg;if(e.dkg>0)inn+=e.dkg;else out-=e.dkg}));
+    const o=sum(open),c=sum(close);T.o+=o;T.i+=inn;T.x+=out;T.c+=c;
+    return `<tr class="dataRow"><td>${regPill(r.code)}</td><td class="muted">${esc(r.desc)}</td><td class="num">${fmt(o)}</td><td class="num" style="color:var(--erp-green-dark)">${inn?'+'+fmt(inn):'—'}</td><td class="num" style="color:var(--red)">${out?'−'+fmt(out):'—'}</td><td class="num"><b>${fmt(c)}</b></td><td class="num ledgerBal ${c-o<0?'dn':c-o>0?'up':''}">${c-o>=0?'+':''}${fmt(c-o)}</td><td class="num">${docs.size}</td>
+      <td>${Object.keys(byMode).sort().map(k=>`<span class="pill ${byMode[k]>=0?'yes':'DED'}" title="${k}">${k} ${byMode[k]>=0?'+':''}${fmt0(byMode[k])}</span>`).join(' ')||'<span class="muted">no movement</span>'}</td></tr>`}).join('')
+    +`<tr class="tot"><td colspan="2"><b>Total ${u||'all units'}</b></td><td class="num"><b>${fmt(T.o)}</b></td><td class="num" style="color:var(--erp-green-dark)"><b>+${fmt(T.i)}</b></td><td class="num" style="color:var(--red)"><b>−${fmt(T.x)}</b></td><td class="num"><b>${fmt(T.c)}</b></td><td class="num ledgerBal ${T.c-T.o<0?'dn':'up'}">${T.c-T.o>=0?'+':''}${fmt(T.c-T.o)}</td><td class="num">${T.docs.size}</td><td class="muted">Transfers count as In on one register and Out on another</td></tr>`;
+}
+['s-unit','s-from','s-to'].forEach(id=>$(id).addEventListener('input',renderStmt));
+refresh();
+if(qs.get('lot'))openLot(parseInt(qs.get('lot')));
+if(qs.get('tab')==='stmt')document.querySelector('#tabs [data-t=stmt]').click();
+</script>
+</body>
+</html>

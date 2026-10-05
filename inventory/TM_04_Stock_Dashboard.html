@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stock Dashboard — Yarn Stock Management</title>
+<link rel="stylesheet" href="assets/tm-ui.css">
+<script src="assets/tm-app.js"></script>
+</head>
+<body>
+<div id="chrome"></div>
+
+<div class="page">
+  <h1 class="title">Yarn Stock Dashboard <span class="deptBadge ref">INSIGHT</span></h1>
+  <div class="subtitle">Live position of all six stock registers across EFL / EKL / ESL, built from approved daily transactions. As of <b id="asof"></b>.</div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="dash3">
+    <div class="chartBox"><h3>Stock Register × Unit (kg)</h3><div class="sub">Click a cell to open the lot-wise ledger for that register and unit</div><table class="matrix" id="matrix"></table></div>
+    <div class="chartBox"><h3>Register mix by unit</h3><div class="sub">Stacked by register · kg</div><div id="stack"></div><div class="legend" id="legend"></div></div>
+  </div>
+
+  <div class="dash2">
+    <div class="chartBox"><h3>Daily movement — last 30 days</h3><div class="sub">Additions (green) vs deductions (orange) from approved transactions · a transfer counts on both sides</div><div id="trend"></div></div>
+    <div class="chartBox"><h3>Transaction mode usage — last 30 days</h3><div class="sub">Quantity moved per mode · documents in brackets</div><div id="modeUse"></div></div>
+  </div>
+
+  <div class="dash2">
+    <div class="chartBox"><h3>Insights &amp; actions</h3><div class="sub">Rules run on the live registers; each row links to where the action is taken</div><div id="insights"></div></div>
+    <div class="chartBox"><h3>Top yarns in stock</h3><div class="sub">All registers, all units · kg</div><div id="topYarn"></div>
+      <h3 style="margin-top:14px">Approval queue</h3><div class="sub">Documents waiting for the Store Manager</div><div id="queue"></div></div>
+  </div>
+
+  <div class="gridCard">
+    <div class="toolbar"><b>Recent transactions</b><span class="sp"></span><a class="btn ghost sm" href="TM_02_Daily_Transaction.html">Open Daily Transaction &#8594;</a></div>
+    <div class="tableScroll"><table class="list">
+      <thead><tr><th>Txn No.</th><th>Date</th><th>Mode</th><th>Type</th><th>From</th><th>To</th><th class="right">Lines</th><th class="right">Qty (kg)</th><th>Reference</th><th>Status</th><th>By</th></tr></thead>
+      <tbody id="recent"></tbody></table></div>
+  </div>
+</div>
+
+<script>
+renderChrome('dash');
+$('asof').textContent=fmtDate(TODAY);
+const link=(u,r)=>`TM_03_Stock_Register_Ledger.html?unit=${u||''}&reg=${r||''}`;
+function refresh(){
+  const b=balances(),rows=stockRows(b),c=committed();
+  const regTot=r=>rows.filter(x=>x.reg===r).reduce((a,x)=>a+x.qty,0),cell=(u,r)=>rows.filter(x=>x.unit===u&&x.reg===r).reduce((a,x)=>a+x.qty,0);
+  const total=rows.reduce((a,x)=>a+x.qty,0),pend=TXNS.filter(t=>t.status==='Pending Approval');
+  /* KPIs */
+  $('kpis').innerHTML=[
+    {n:fmt0(total),l:'Total yarn stock',s:(()=>{const p=rows.reduce((a,x)=>pAdd(a,x.pack),P0());return p.iCtn+' ctn intake ('+fmt0(p.iKg)+' kg) · '+p.lCone+' cone lose ('+fmt0(p.lKg)+' kg)'})(),cls:'k-green',href:link()},
+    {n:fmt0(regTot('ALC')),l:'Allocated',s:Math.round(regTot('ALC')/total*100)+'% of stock',cls:'k-green',href:link('','ALC')},
+    {n:fmt0(regTot('MMP')+regTot('TXP')),l:'Projection (M&M + Textile)',s:'not yet order-tied',cls:'k-purple',href:link('','MMP')},
+    {n:fmt0(regTot('LIB')),l:'Liability',s:'owed / on loan',cls:'k-red',href:link('','LIB')},
+    {n:fmt0(regTot('LFT')+regTot('SMP')),l:'Left Over + Sample',s:fmt0(regTot('LFT'))+' left over',cls:'k-orange',href:link('','LFT')},
+    {n:pend.length,l:'Pending approval',s:fmt0(pend.reduce((a,t)=>a+txnQty(t),0))+' kg committed',cls:'k-blue',href:'TM_02_Daily_Transaction.html?tab=pending'}
+  ].map(k=>`<div class="kpi ${k.cls} clickable" onclick="location.href='${k.href}'"><div><div class="num">${k.n}${typeof k.n==='string'?'<small>kg</small>':''}</div><div class="lbl">${k.l}</div><div class="sub2">${k.s}</div></div></div>`).join('');
+  /* matrix */
+  $('matrix').innerHTML=`<tr><th>Register</th>${UNITS.map(u=>`<th>${u}<div class="muted" style="font-weight:400;font-size:10px">${UNIT_NAMES[u]}</div></th>`).join('')}<th>Total</th><th>Share</th></tr>`
+    +REGISTERS.map(r=>`<tr><td>${regPill(r.code)}</td>${UNITS.map(u=>{const v=cell(u,r.code);return `<td class="cell ${v?'':'zero'}" onclick="location.href='${link(u,r.code)}'">${v?fmt0(v):'—'}</td>`}).join('')}<td class="tot">${fmt0(regTot(r.code))}</td><td class="tot">${total?Math.round(regTot(r.code)/total*100):0}%</td></tr>`).join('')
+    +`<tr class="tot"><td>Total</td>${UNITS.map(u=>`<td class="cell" onclick="location.href='${link(u,'')}'">${fmt0(rows.filter(x=>x.unit===u).reduce((a,x)=>a+x.qty,0))}</td>`).join('')}<td>${fmt0(total)}</td><td>100%</td></tr>`;
+  /* stacked bars */
+  const W=330,H=190,pad=30,bw=60,max=Math.max(...UNITS.map(u=>rows.filter(x=>x.unit===u).reduce((a,x)=>a+x.qty,0)))||1;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-height:200px">`;
+  UNITS.forEach((u,i)=>{let y=H-pad;const x=pad+10+i*(bw+40);REGISTERS.forEach(r=>{const v=cell(u,r.code);if(!v)return;const h=v/max*(H-pad-20);y-=h;svg+=`<rect x="${x}" y="${y}" width="${bw}" height="${h}" fill="${r.color}" opacity=".9"><title>${u} · ${r.name}: ${fmt0(v)} kg</title></rect>`});
+    svg+=`<text x="${x+bw/2}" y="${H-pad+14}" text-anchor="middle" font-size="11" font-weight="700">${u}</text><text x="${x+bw/2}" y="${y-5}" text-anchor="middle" font-size="10" fill="#6B7280">${fmt0(rows.filter(x=>x.unit===u).reduce((a,x)=>a+x.qty,0))}</text>`});
+  $('stack').innerHTML=svg+'</svg>';$('legend').innerHTML=REGISTERS.map(r=>`<span><i style="background:${r.color}"></i>${r.name}</span>`).join('');
+  /* trend */
+  const days=[];for(let i=29;i>=0;i--)days.push(addDays(TODAY,-i));const inn={},out={};
+  TXNS.filter(t=>t.status==='Approved'&&t.date>=days[0]).forEach(t=>effects(t).forEach(e=>{if(e.dkg>0)inn[t.date]=(inn[t.date]||0)+e.dkg;else if(e.dkg<0)out[t.date]=(out[t.date]||0)-e.dkg}));
+  const TW=560,TH=180,tp=26,mx=Math.max(1,...days.map(d=>Math.max(inn[d]||0,out[d]||0)));const cw=(TW-tp-10)/30;
+  let ts=`<svg viewBox="0 0 ${TW} ${TH}" width="100%" style="max-height:200px">`;
+  [0,.5,1].forEach(f=>{const y=TH-tp-f*(TH-tp-14);ts+=`<line x1="${tp}" x2="${TW}" y1="${y}" y2="${y}" stroke="#E5E7EB"/><text x="${tp-4}" y="${y+4}" text-anchor="end" font-size="9" fill="#9CA3AF">${fmt0(mx*f)}</text>`});
+  days.forEach((d,i)=>{const x=tp+i*cw;const hi=(inn[d]||0)/mx*(TH-tp-14),ho=(out[d]||0)/mx*(TH-tp-14);
+    ts+=`<rect x="${x+1}" y="${TH-tp-hi}" width="${cw/2-1.5}" height="${hi}" fill="#2E7D4F"><title>${fmtDate(d)} in ${fmt0(inn[d]||0)} kg</title></rect><rect x="${x+cw/2}" y="${TH-tp-ho}" width="${cw/2-1.5}" height="${ho}" fill="#F4831F"><title>${fmtDate(d)} out ${fmt0(out[d]||0)} kg</title></rect>`;
+    if(i%5===0||i===29)ts+=`<text x="${x+cw/2}" y="${TH-tp+12}" text-anchor="middle" font-size="9" fill="#6B7280">${d.slice(5).replace('-','/')}</text>`});
+  $('trend').innerHTML=ts+'</svg>';
+  /* mode usage */
+  const d30=addDays(TODAY,-30),mu={};TXNS.filter(t=>t.status==='Approved'&&t.date>=d30).forEach(t=>{const k=t.mode;mu[k]=mu[k]||{kg:0,n:0};mu[k].kg+=txnQty(t);mu[k].n++});
+  const mk=Object.keys(mu).sort((a,b)=>mu[b].kg-mu[a].kg),mmax=mu[mk[0]]?mu[mk[0]].kg:1;
+  $('modeUse').innerHTML=mk.map(k=>{const m=mode(k);return `<div class="hbar"><span title="${esc(m.name)}"><b>${esc(m.short)}</b> <span class="muted">${esc(m.name)}</span></span><div class="bar"><i style="width:${mu[k].kg/mmax*100}%;background:${{ADD:'#2E7D4F',DED:'#F4831F',BOTH:'#1976D2'}[m.type]}"></i></div><span class="v">${fmt0(mu[k].kg)} (${mu[k].n})</span></div>`}).join('')||'<div class="muted">No movement in the period</div>';
+  /* top yarns */
+  const ty={};rows.forEach(x=>{const yc=lotById(x.lot).yarnCode;ty[yc]=(ty[yc]||0)+x.qty});const tk=Object.keys(ty).sort((a,b)=>ty[b]-ty[a]).slice(0,7),tmax=ty[tk[0]]||1;
+  $('topYarn').innerHTML=tk.map(k=>`<div class="hbar"><span title="${esc(yarn(k).desc)}"><b>${esc(yarn(k).count)}</b> <span class="muted">${esc(yarn(k).desc).slice(0,26)}</span></span><div class="bar"><i style="width:${ty[k]/tmax*100}%"></i></div><span class="v">${fmt0(ty[k])}</span></div>`).join('');
+  /* queue */
+  $('queue').innerHTML=pend.sort((a,b)=>a.date.localeCompare(b.date)).map(t=>{const m=mode(t.mode),age=daysBetween(t.date,TODAY);return `<div class="insight"><div class="ic ${age>1?'red':'amber'}">&#9203;</div><div><div class="t"><a class="view-link" onclick="viewTxn('${t.no}')">${t.no}</a> · ${esc(m.name)} · ${fmt0(txnQty(t))} kg</div><div class="d">${fmtDate(t.date)} · waiting ${age} day(s) · ${m.type==='ADD'?'':unitPill(t.fromUnit)+' '+regCode(t.fromReg)}${m.type==='BOTH'?' &#8594; ':''}${m.type==='DED'?'':unitPill(t.toUnit)+' '+regCode(t.toReg)}</div></div><span class="act" onclick="viewTxn('${t.no}')">Review</span></div>`}).join('')||'<div class="muted" style="padding:6px 0">Queue is empty</div>';
+  /* insights */
+  const ins=[];
+  const old=pend.filter(t=>daysBetween(t.date,TODAY)>1);if(old.length)ins.push({ic:'red',e:'&#9888;',t:old.length+' approval(s) older than 1 day',d:old.map(t=>t.no).join(', ')+' — '+fmt0(old.reduce((a,t)=>a+txnQty(t),0))+' kg is blocked as committed stock',a:'Open queue',h:'TM_02_Daily_Transaction.html?tab=pending'});
+  const aged=rows.filter(x=>x.reg==='LFT'&&daysBetween(lastMoveOf(x.lot,x.unit,'LFT'),TODAY)>45);if(aged.length)ins.push({ic:'amber',e:'&#128197;',t:'Left Over idle > 45 days: '+aged.length+' lot(s), '+fmt0(aged.reduce((a,x)=>a+x.qty,0))+' kg',d:'Decide: reclassify to Liability (LO-LIB), use on a new order (PJ-ALC style move) or write off with ADJ−',a:'See lots',h:link('','LFT')});
+  const proj=rows.filter(x=>(x.reg==='MMP'||x.reg==='TXP')&&daysBetween(lotById(x.lot).recv,TODAY)>90);if(proj.length)ins.push({ic:'purple',e:'&#128200;',t:'Projection yarn older than 90 days: '+fmt0(proj.reduce((a,x)=>a+x.qty,0))+' kg',d:proj.length+' lot-cell(s) bought on projection still without a confirmed order — review with Merchandising',a:'Review',h:link('','MMP')});
+  const lib=UNITS.map(u=>({u,q:cell(u,'LIB')})).filter(x=>x.q>0);if(lib.length)ins.push({ic:'red',e:'&#128176;',t:'Liability outstanding: '+lib.map(x=>x.u+' '+fmt0(x.q)+' kg').join(' · '),d:'Loaned / buyer-owned yarn to be returned or settled — use Loan Return (LN-RET)',a:'Liability ledger',h:link('','LIB')});
+  const frag=rows.filter(x=>x.qty<100);if(frag.length)ins.push({ic:'blue',e:'&#129513;',t:frag.length+' fragment lot-cell(s) under 100 kg',d:'Small balances that block a whole lot — consolidate to Sample or issue with the next requisition',a:'See lots',h:link()});
+  const dev=LOTS.filter(L=>rows.some(x=>x.lot===L.id)&&Math.abs(parseFloat(L.count)-parseFloat(yarn(L.yarnCode).count))>0.25);if(dev.length)ins.push({ic:'amber',e:'&#128300;',t:'Physical count deviates from nominal on '+dev.length+' lot(s)',d:dev.map(L=>L.lot+' ('+L.count+' vs '+yarn(L.yarnCode).count.split('/')[0]+')').join(', ')+' — check QC test result before issuing to production',a:'Ledger',h:link()});
+  const alc=total?Math.round(regTot('ALC')/total*100):0;ins.push({ic:alc>=45?'green':'amber',e:'&#127919;',t:'Allocation coverage '+alc+'% of stock',d:alc>=45?'Healthy — most yarn is tied to confirmed orders':'Low — a large share of stock is on projection; confirm orders and run Projection to Allocated (PJ-ALC)',a:'Allocated',h:link('','ALC')});
+  const iss=TXNS.filter(t=>t.status==='Approved'&&t.date>=d30&&(t.mode==='TM-001'||t.mode==='TM-002')).reduce((a,t)=>a+txnQty(t),0);const cover=iss?Math.round(regTot('ALC')/(iss/30)):0;ins.push({ic:'blue',e:'&#9201;',t:'Allocated stock covers ~'+cover+' days of issue',d:'Based on '+fmt0(iss)+' kg issued to knitting and dyeing in the last 30 days ('+fmt0(iss/30)+' kg/day)',a:'Statement',h:'TM_03_Stock_Register_Ledger.html?tab=stmt'});
+  const dr=TXNS.filter(t=>t.status==='Draft');if(dr.length)ins.push({ic:'blue',e:'&#128221;',t:dr.length+' draft(s) not yet submitted',d:dr.map(t=>t.no+' '+mode(t.mode).short).join(', '),a:'Drafts',h:'TM_02_Daily_Transaction.html?tab=draft'});
+  $('insights').innerHTML=ins.map(i=>`<div class="insight"><div class="ic ${i.ic}">${i.e}</div><div><div class="t">${i.t}</div><div class="d">${i.d}</div></div><span class="act" onclick="location.href='${i.h}'">${i.a} &#8594;</span></div>`).join('');
+  /* recent */
+  $('recent').innerHTML=TXNS.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.no.localeCompare(a.no)).slice(0,10).map(t=>{const m=mode(t.mode)||{};return `<tr class="dataRow"><td class="mono"><a class="view-link" onclick="viewTxn('${t.no}')">${t.no}</a></td><td>${fmtDate(t.date)}</td><td><b>${esc(m.short)}</b> <span class="muted">${esc(m.name)}</span></td><td>${typePill(m.type)}</td><td>${m.type==='ADD'?'<span class="muted">—</span>':unitPill(t.fromUnit)+' '+regCode(t.fromReg)}</td><td>${m.type==='DED'?'<span class="muted">—</span>':unitPill(t.toUnit)+' '+regCode(t.toReg)}</td><td class="num">${t.lines.length}</td><td class="num">${fmt(txnQty(t))}</td><td class="mono">${t.refNo||'<span class="muted">N/A</span>'}</td><td>${statusPill(t.status)}</td><td class="muted">${esc(t.approvedBy||t.createdBy)}</td></tr>`}).join('');
+}
+refresh();
+</script>
+</body>
+</html>

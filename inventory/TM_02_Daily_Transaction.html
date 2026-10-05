@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Transaction — Yarn Stock Management</title>
+<link rel="stylesheet" href="assets/tm-ui.css">
+<script src="assets/tm-app.js"></script>
+</head>
+<body>
+<div id="chrome"></div>
+
+<div class="page">
+  <!-- ============ LIST ============ -->
+  <div id="listView">
+    <h1 class="title">Daily Transaction Information <span class="deptBadge">STORE</span></h1>
+    <div class="subtitle">One entry screen for every stock movement. Pick a transaction mode; the form asks only for what that mode's setup allows. Every quantity is kept in <b>Intake</b> (unopened cartons) and <b>Lose</b> (opened / loose) form.</div>
+
+    <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+      <div class="kpi k-blue clickable" onclick="setTab('all')"><div><div class="num" id="k-today">0</div><div class="lbl">Posted today</div><div class="sub2" id="k-today-kg"></div></div></div>
+      <div class="kpi k-orange clickable" onclick="setTab('pending')"><div><div class="num" id="k-pend">0</div><div class="lbl">Pending approval</div><div class="sub2" id="k-pend-kg"></div></div></div>
+      <div class="kpi clickable" onclick="setTab('draft')"><div><div class="num" id="k-draft">0</div><div class="lbl">Drafts</div></div></div>
+      <div class="kpi k-green"><div><div class="num" id="k-in">0<small>kg</small></div><div class="lbl">Added · 30 days</div><div class="sub2" id="k-in-p"></div></div></div>
+      <div class="kpi k-red"><div><div class="num" id="k-out">0<small>kg</small></div><div class="lbl">Deducted · 30 days</div><div class="sub2" id="k-out-p"></div></div></div>
+    </div>
+
+    <div class="subtabs" id="tabs">
+      <button class="subtab" data-t="draft">Draft List(s) <span class="badge" id="tc-draft">0</span></button>
+      <button class="subtab" data-t="pending">Pending Approval List(s) <span class="badge" id="tc-pending">0</span></button>
+      <button class="subtab" data-t="approved">Approved List(s) <span class="badge" id="tc-approved">0</span></button>
+      <button class="subtab active" data-t="all">All List(s) <span class="badge" id="tc-all">0</span></button>
+    </div>
+
+    <div class="gridCard">
+      <div class="toolbar">
+        <span class="sel"><b id="selCount">0</b> selected</span>
+        <span class="sp"></span>
+        <button class="btn primary" id="btn-approve" disabled onclick="bulk(true)">&#10003; Approve Selected</button>
+        <button class="btn danger" id="btn-reject" disabled onclick="bulk(false)">&#10007; Reject Selected</button>
+        <button class="btn warn" onclick="openForm()">&#43; Create New</button>
+      </div>
+      <div class="toolbar">
+        <input type="text" class="search" id="q" placeholder="🔍 Txn no, lot, yarn, spinner, reference, party…">
+        <span class="lbl">Mode</span><select id="f-mode"></select>
+        <span class="lbl">Unit</span><select id="f-unit"></select>
+        <span class="lbl">Register</span><select id="f-reg"></select>
+        <span class="lbl">From</span><input type="date" id="f-from"><span class="lbl">To</span><input type="date" id="f-to">
+        <button class="btn ghost sm" onclick="resetFilters()">Reset</button>
+      </div>
+      <div class="tableScroll">
+        <table class="list wide">
+          <thead>
+            <tr><th class="chk" rowspan="2"><input type="checkbox" id="chkAll" onclick="toggleAll(this)"></th><th rowspan="2">Manage</th><th class="f" rowspan="2">Txn No.</th><th class="f" rowspan="2">Transaction Date</th><th rowspan="2">Transaction Short Name</th><th rowspan="2">Yarn Description</th><th rowspan="2">Spinner</th><th rowspan="2">Physical Lot</th><th rowspan="2">Physical Count</th><th colspan="3" class="pkGrp">Intake</th><th colspan="3" class="pkGrp l">Lose</th><th class="right" rowspan="2">Total Kg</th><th rowspan="2">From Stock Register</th><th rowspan="2">To Stock Register</th><th rowspan="2">From Unit</th><th rowspan="2">To Unit</th><th rowspan="2">Reference</th><th rowspan="2">Status</th></tr>
+            <tr><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th></tr>
+          </thead>
+          <tbody id="tb"></tbody>
+        </table>
+      </div>
+      <div class="pager" id="pg-txn"></div>
+    </div>
+  </div>
+
+  <!-- ============ FORM ============ -->
+  <div id="formView" class="formView hidden">
+    <div class="formTop">
+      <h2 id="f-title">New Daily Transaction <span class="no" id="f-no"></span></h2>
+      <span class="meta" id="f-meta"></span>
+      <span class="sp"></span>
+      <button class="btn ghost" onclick="closeForm()">Cancel</button>
+      <button class="btn blue" onclick="saveDraft()">&#128190; Save Draft</button>
+      <button class="btn primary" id="btn-submit" onclick="submitDoc()">&#10003; Submit</button>
+    </div>
+    <div class="stepper" id="stepper">
+      <div class="st here" id="st1"><span class="n">1</span>Select Transaction Mode</div>
+      <div class="st" id="st2"><span class="n">2</span>Header — unit, register, reference</div>
+      <div class="st" id="st3"><span class="n">3</span>Yarn lines &amp; quantity (Intake / Lose)</div>
+      <div class="st" id="st4"><span class="n">4</span>Check impact &amp; submit</div>
+    </div>
+
+    <!-- 1 mode -->
+    <div class="card"><div class="cardHead"><h3>1 · Transaction Mode</h3></div>
+      <div class="cardBody">
+        <div class="fields" style="grid-template-columns:2fr 3fr">
+          <div class="fld"><label>Transaction Mode <span class="req">*</span></label><select id="d-mode" onchange="pickMode(this.value)"></select></div>
+          <div id="modeDetail" class="modeCard on hidden" style="cursor:default"></div>
+        </div>
+      </div></div>
+
+    <!-- 2 header -->
+    <div class="card hidden" id="card-head"><div class="cardHead"><h3>2 · Transaction Header</h3><span class="lnk muted" id="head-hint"></span></div><div class="cardBody">
+      <div class="fields">
+        <div class="fld"><label>Transaction No.</label><input id="d-no" class="readonly" readonly></div>
+        <div class="fld"><label>Transaction Date <span class="req">*</span></label><input type="date" id="d-date"></div>
+        <div class="fld" id="fld-unit"><label>Unit <span class="req">*</span></label><select id="d-unit" onchange="unitChange()"></select></div>
+        <div class="fld hidden" id="fld-funit"><label>From Unit <span class="req">*</span></label><select id="d-funit" onchange="unitChange()"></select></div>
+        <div class="fld hidden" id="fld-tunit"><label>To Unit <span class="req">*</span></label><select id="d-tunit" onchange="unitChange()"></select></div>
+        <div class="fld" id="fld-freg"><label id="lbl-freg">From Stock Register <span class="req">*</span></label><select id="d-freg" onchange="regChange()"></select></div>
+        <div class="fld" id="fld-treg"><label>To Stock Register <span class="req">*</span></label><select id="d-treg" onchange="regChange()"></select></div>
+        <div class="fld" id="fld-ref"><label id="lbl-ref">Reference <span class="req">*</span></label><select id="d-ref" onchange="refChange()"></select></div>
+        <div class="fld hidden" id="fld-refman"><label>Reference No. <span class="req">*</span> <span class="muted">(manual)</span></label><input id="d-refman" placeholder="e.g. order no., count sheet, memo no." oninput="doc.refNo=this.value.trim()"></div>
+        <div class="fld"><label>Party / Issued to / Received from</label><select id="d-party"></select></div>
+        <div class="fld w2"><label>Remarks <span class="muted" id="rem-hint"></span></label><input id="d-remarks" placeholder="Optional"></div>
+      </div>
+      <div class="refBox hidden" id="refBox"></div>
+    </div></div>
+
+    <!-- 3 lines -->
+    <div class="card hidden" id="card-lines"><div class="cardHead"><h3>3 · Yarn Lines</h3><span class="lnk"><span class="muted" id="lines-hint"></span> <button class="btn warn sm hidden" id="btn-addYarn" onclick="addYarnModal()">&#43; Add Yarn</button></span></div><div class="cardBody">
+      <div class="tableScroll"><table class="items" id="tbl-lines">
+        <thead>
+          <tr><th rowspan="2">#</th><th rowspan="2">Yarn Description</th><th rowspan="2">Spinner</th><th rowspan="2">Physical Lot</th><th rowspan="2">Physical Count</th><th class="right" rowspan="2" id="th-req">Required (ref)</th><th colspan="3" class="pkGrp" id="th-i">Intake</th><th colspan="3" class="pkGrp l" id="th-l">Lose</th><th class="right" rowspan="2">Total Kg</th><th rowspan="2">Stock</th><th rowspan="2"></th></tr>
+          <tr><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th></tr>
+        </thead>
+        <tbody id="tb-lines"></tbody>
+        <tfoot><tr><td colspan="5" class="right"><b>Total</b></td><td class="right" id="ln-req"></td><td colspan="6" id="ln-pack"></td><td class="right"><b id="ln-total">0.00</b></td><td colspan="2"></td></tr></tfoot>
+      </table></div>
+      <div class="lineTip" id="lineTip"></div>
+    </div></div>
+
+    <!-- 4 impact -->
+    <div class="card hidden" id="card-impact"><div class="cardHead"><h3>4 · Stock Impact Preview</h3><span class="lnk muted" id="impact-hint"></span></div><div class="cardBody">
+      <div id="impact"></div>
+      <div class="notebox red hidden" id="errBox"></div>
+      <div class="audit" id="audit"></div>
+    </div></div>
+  </div>
+</div>
+
+<script>
+renderChrome('txn');
+const qs=new URLSearchParams(location.search);
+let tab='all',doc=null,B=null,C=null;
+
+/* ================= LIST ================= */
+$('f-mode').innerHTML='<option value="">All</option>'+MODES.map(m=>`<option value="${m.code}">${esc(m.short)} · ${esc(m.name)}</option>`).join('');
+$('f-unit').innerHTML=opts(UNITS,'','All');$('f-reg').innerHTML=regOpts(REG_CODES,'','All');
+function resetFilters(){['q','f-mode','f-unit','f-reg','f-from','f-to'].forEach(id=>$(id).value='');renderList()}
+function setTab(t){tab=t;document.querySelectorAll('#tabs .subtab').forEach(b=>b.classList.toggle('active',b.dataset.t===t));PG.txn&&(PG.txn.page=1);renderList()}
+document.querySelectorAll('#tabs .subtab').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
+const inTab=t=>tab==='all'||(tab==='draft'&&t.status==='Draft')||(tab==='pending'&&t.status==='Pending Approval')||(tab==='approved'&&t.status==='Approved');
+function refresh(){
+  const d30=addDays(TODAY,-30);let kin=0,kout=0,pin=P0(),pout=P0();
+  TXNS.filter(t=>t.status==='Approved'&&t.date>=d30).forEach(t=>effects(t).forEach(e=>{if(e.dkg>0){kin+=e.dkg;pin=pAdd(pin,e.dpack)}else if(e.dkg<0){kout-=e.dkg;pout=pAdd(pout,pNeg(e.dpack))}}));
+  const td=TXNS.filter(t=>t.status==='Approved'&&t.approvedOn===TODAY),pd=TXNS.filter(t=>t.status==='Pending Approval');
+  $('k-today').textContent=td.length;$('k-today-kg').textContent=fmt0(td.reduce((a,t)=>a+txnQty(t),0))+' kg';
+  $('k-pend').textContent=pd.length;$('k-pend-kg').textContent=fmt0(pd.reduce((a,t)=>a+txnQty(t),0))+' kg waiting';
+  $('k-draft').textContent=TXNS.filter(t=>t.status==='Draft').length;$('k-in').firstChild.textContent=fmt0(kin);$('k-out').firstChild.textContent=fmt0(kout);
+  $('k-in-p').textContent=pin.iCtn+' ctn intake · '+pin.lCone+' cone lose';$('k-out-p').textContent=pout.iCtn+' ctn intake · '+pout.lCone+' cone lose';
+  $('tc-draft').textContent=TXNS.filter(t=>t.status==='Draft').length;$('tc-pending').textContent=pd.length;$('tc-approved').textContent=TXNS.filter(t=>t.status==='Approved').length;$('tc-all').textContent=TXNS.length;
+  renderList();
+}
+function renderList(){
+  const q=($('q').value||'').toLowerCase(),fm=$('f-mode').value,fu=$('f-unit').value,fr=$('f-reg').value,df=$('f-from').value,dt=$('f-to').value;
+  const rows=[];
+  TXNS.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.no.localeCompare(a.no)).forEach(t=>{const m=mode(t.mode)||{};
+    if(!inTab(t))return;if(fm&&t.mode!==fm)return;if(fu&&t.fromUnit!==fu&&t.toUnit!==fu)return;if(fr&&t.fromReg!==fr&&t.toReg!==fr)return;if(df&&t.date<df)return;if(dt&&t.date>dt)return;
+    t.lines.forEach((l,i)=>{const y=yarn(l.yarnCode);if(q&&![t.no,l.lot,y.desc,l.spinner,t.refNo,t.party,m.short,m.name].join(' ').toLowerCase().includes(q))return;rows.push({t,l,i,m,y})});
+  });
+  const slice=pager('txn',rows);
+  $('tb').innerHTML=slice.map(({t,l,i,m,y})=>`<tr class="dataRow ${t.status==='Rejected'?'warn':''}">
+    <td class="chk">${i===0&&t.status==='Pending Approval'?`<input type="checkbox" class="rowchk" value="${t.no}" onclick="selChange()">`:''}</td>
+    <td><a class="view-link" onclick="viewTxn('${t.no}')">View</a>${t.status==='Draft'?`, <a class="view-link" onclick="openForm('${t.no}')">Edit</a>`:''}${t.status==='Pending Approval'?`, <a class="view-link" onclick="viewTxn('${t.no}')">Approve</a>`:''}</td>
+    <td class="mono">${i===0?t.no:'<span class="muted">″</span>'}</td><td>${fmtDate(t.date)}</td><td><b>${esc(m.short||t.mode)}</b><div class="muted" style="font-size:10.5px">${esc(m.name||'')}</div></td>
+    <td class="yarn-name">${esc(y.desc)}</td><td>${esc(l.spinner)}</td><td class="mono">${esc(l.lot)}</td><td class="mono">${esc(l.count)}</td>${pCells(l.pack)}<td class="num"><b>${fmt(l.qty)}</b></td>
+    <td>${m.type==='ADD'?'<span class="muted">—</span>':regPill(t.fromReg)}</td><td>${m.type==='DED'?'<span class="muted">—</span>':m.type==='CONV'?'<span class="muted">same (Lose)</span>':regPill(t.toReg)}</td>
+    <td>${m.type==='ADD'?'<span class="muted">—</span>':unitPill(t.fromUnit)}</td><td>${m.type==='DED'||m.type==='CONV'?'<span class="muted">—</span>':unitPill(t.toUnit)}</td>
+    <td class="mono">${t.refNo?esc(t.refNo):'<span class="muted">N/A</span>'}</td><td>${statusPill(t.status)}</td></tr>`).join('')
+    ||'<tr><td colspan="22" class="muted" style="text-align:center;padding:16px">No transaction in this list</td></tr>';
+  selChange();
+}
+['q','f-mode','f-unit','f-reg','f-from','f-to'].forEach(id=>$(id).addEventListener('input',()=>{PG.txn.page=1;renderList()}));
+pagerBind('txn',renderList);
+const selected=()=>[...document.querySelectorAll('.rowchk:checked')].map(c=>c.value);
+function selChange(){const n=selected().length;$('selCount').textContent=n;$('btn-approve').disabled=!n;$('btn-reject').disabled=!n}
+function toggleAll(c){document.querySelectorAll('.rowchk').forEach(x=>x.checked=c.checked);selChange()}
+function bulk(ok){const s=selected();if(!s.length)return;let n=0;
+  if(!ok){const r=prompt('Reason for rejecting '+s.length+' transaction(s):');if(r===null)return;s.forEach(no=>{const t=TXNS.find(x=>x.no===no);t.status='Rejected';t.approvedBy=APPROVER.name;t.approvedOn=TODAY;t.remarks=(t.remarks?t.remarks+' · ':'')+'Rejected: '+r;n++})}
+  else s.forEach(no=>{const t=TXNS.find(x=>x.no===no);const e=validateTxn(t);if(e.length){toast(t.no+': '+e[0],'error');return}t.status='Approved';t.approvedBy=APPROVER.name;t.approvedOn=TODAY;n++});
+  saveDB();toast(n+' transaction(s) '+(ok?'approved — stock registers updated':'rejected'),ok?'success':'warn');refresh();
+}
+
+/* ================= FORM =================
+   doc.items = yarn rows the user sees; doc.lines = lot-level allocations with a pack (Intake/Lose) each; line.item → row */
+$('d-unit').innerHTML=opts(UNITS,'EFL');$('d-funit').innerHTML=opts(UNITS,'EFL');$('d-tunit').innerHTML=opts(UNITS,'EKL');
+$('d-party').innerHTML=opts(PARTIES.concat(['Store']),'','— select —');
+$('d-mode').innerHTML='<option value="">— select transaction mode —</option>'+MODES.filter(m=>m.active).map(m=>`<option value="${m.code}">${esc(m.short)} · ${esc(m.name)}</option>`).join('');
+
+function blank(){return {no:'',date:TODAY,mode:'',fromReg:'',toReg:'',fromUnit:'EFL',toUnit:'EFL',refType:'NA',refNo:'',party:'',remarks:'',items:[],lines:[],status:'Draft',createdBy:USER.name,createdOn:TODAY,approvedBy:'',approvedOn:''}}
+function openForm(no){
+  doc=no?TXNS.find(t=>t.no===no):blank();if(!doc)return;
+  if(doc.status!=='Draft'){toast(doc.no+' is '+doc.status+' — only drafts can be edited','warn');doc=null;return}
+  if(!doc.items){doc.items=[];doc.lines.forEach(l=>{let i=doc.items.findIndex(x=>x.yarnCode===l.yarnCode);if(i<0){i=doc.items.push({yarnCode:l.yarnCode,spinner:l.spinner,lot:l.lot,count:l.count,reqQty:0})-1}l.item=i})}
+  B=balances();C=committed(doc.no);
+  $('f-title').firstChild.textContent=no?'Edit Draft ':'New Daily Transaction ';$('f-no').textContent=doc.no||'';
+  $('f-meta').textContent=no?'Draft saved '+fmtDate(doc.createdOn)+' by '+doc.createdBy:'';
+  $('d-no').value=doc.no||'DT-26-'+String(SEQ.DT).padStart(4,'0')+' (auto)';$('d-date').value=doc.date;$('d-party').value=doc.party;$('d-remarks').value=doc.remarks;
+  $('d-unit').value=doc.fromUnit||doc.toUnit||'EFL';$('d-funit').value=doc.fromUnit||'EFL';$('d-tunit').value=doc.toUnit||'EKL';
+  $('d-mode').value=doc.mode;
+  $('listView').classList.add('hidden');$('formView').classList.remove('hidden');window.scrollTo(0,0);
+  if(doc.mode)pickMode(doc.mode,true);else{['card-head','card-lines','card-impact'].forEach(id=>$(id).classList.add('hidden'));$('modeDetail').classList.add('hidden');steps(1)}
+}
+function closeForm(){$('formView').classList.add('hidden');$('listView').classList.remove('hidden');doc=null;refresh()}
+function steps(n){[1,2,3,4].forEach(i=>{const e=$('st'+i);e.classList.toggle('done',i<n);e.classList.toggle('here',i===n)})}
+const M=()=>mode(doc.mode);
+const isAdd=()=>M().type==='ADD';
+const isConv=()=>M().type==='CONV';
+
+/* ---- 1 · mode ---- */
+function pickMode(code,keep){
+  const m=mode(code);
+  if(!m){doc.mode='';$('modeDetail').classList.add('hidden');['card-head','card-lines','card-impact'].forEach(id=>$(id).classList.add('hidden'));steps(1);return}
+  if(!keep&&doc.mode&&doc.mode!==code&&doc.lines.length&&!confirm('Changing the mode clears the yarn lines. Continue?')){$('d-mode').value=doc.mode;return}
+  if(!keep&&doc.mode!==code){doc.items=[];doc.lines=[];doc.fromReg='';doc.toReg='';doc.refNo='';}
+  doc.mode=code;doc.refType=m.refInput;
+  $('modeDetail').classList.remove('hidden');
+  $('modeDetail').innerHTML=`<div class="c">${m.code} ${typePill(m.type)}${m.approval?'<span class="pill pending" title="Needs Store Manager approval">Approval required</span>':'<span class="pill approved">Posts on submit</span>'}${m.multiUnit?'<span class="pill draft">Multi-unit</span>':''}</div>
+    <div class="n">${esc(m.name)} <span class="muted" style="font-weight:400">· ${esc(m.short)}</span></div>
+    <div class="f">${modeFlowHtml(m)}</div>
+    <div class="f">${m.hasRef?'Reference: <b>'+esc(REFI[m.refInput].name)+'</b> — yarn lines come from the document':'No reference document — type a manual reference no. and add yarns one by one'}</div>
+    <div class="f muted">${esc(m.note||'')}</div>`;
+  const multi=m.type==='BOTH'&&m.multiUnit;
+  $('fld-unit').classList.toggle('hidden',multi);$('fld-funit').classList.toggle('hidden',!multi);$('fld-tunit').classList.toggle('hidden',!multi);
+  $('fld-freg').classList.toggle('hidden',m.type==='ADD');$('fld-treg').classList.toggle('hidden',m.type==='DED'||m.type==='CONV');
+  $('lbl-freg').innerHTML=(m.type==='CONV'?'Stock Register (cartons opened here)':'From Stock Register')+' <span class="req">*</span>';
+  $('d-freg').innerHTML=regOpts(m.fromRegs,doc.fromReg,m.fromRegs.length>1?'— select —':'');if(m.fromRegs.length===1)doc.fromReg=m.fromRegs[0];$('d-freg').value=doc.fromReg;
+  $('d-treg').innerHTML=regOpts(m.toRegs,doc.toReg,m.toRegs.length>1?'— select —':'');if(m.toRegs.length===1)doc.toReg=m.toRegs[0];$('d-treg').value=doc.toReg;
+  $('fld-ref').classList.toggle('hidden',!m.hasRef);$('fld-refman').classList.toggle('hidden',m.hasRef);
+  if(!m.hasRef)$('d-refman').value=doc.refNo||'';
+  if(m.hasRef){$('lbl-ref').innerHTML=esc(REFI[m.refInput].name)+' <span class="req">*</span>';
+    const docs=REFDOCS.filter(d=>d.type===m.refInput&&(d.status==='Open'||d.no===doc.refNo));
+    $('d-ref').innerHTML='<option value="">— select open '+esc(REFI[m.refInput].name)+' —</option>'+docs.map(d=>`<option value="${d.no}" ${d.no===doc.refNo?'selected':''}>${d.no} · ${d.unit} · ${esc(d.party)} · ${fmtDate(d.date)}</option>`).join('');}
+  $('head-hint').textContent=m.type==='ADD'?'Addition — only the To side is asked':m.type==='DED'?'Deduction — only the From side is asked':m.type==='CONV'?'Carton break — one register cell; Intake figures move to Lose':multi?'Movement between units — From and To may differ':'Movement inside one unit — From and To register must differ';
+  $('rem-hint').textContent=(m.code==='TM-011'||m.code==='TM-012')?'(evidence / count sheet no. required)':'';
+  $('btn-submit').innerHTML=m.approval?'&#10148; Submit for Approval':'&#10003; Post Transaction';
+  $('btn-addYarn').classList.toggle('hidden',m.hasRef);
+  $('th-req').textContent=m.hasRef?'Required (ref)':'';
+  $('th-i').textContent=m.type==='CONV'?'Intake (to open)':'Intake';$('th-l').textContent=m.type==='CONV'?'Becomes Lose':'Lose';
+  $('lines-hint').textContent=m.hasRef?(m.type==='ADD'?'Rows come from the reference; press Edit to change lot or packing':'Rows come from the reference; press Pick from stock on each yarn'):(m.type==='ADD'?'Add each yarn with its lot and Intake / Lose packing':m.type==='CONV'?'Add a yarn, then choose the lot and how many cartons to open':'Add a yarn, then pick the lots and forms it comes from');
+  ['card-head','card-lines','card-impact'].forEach(id=>$(id).classList.remove('hidden'));
+  unitChange(true);renderRef();renderLines();steps(2);
+}
+/* ---- 2 · header ---- */
+function unitChange(silent){
+  const m=M();if(!m)return;const multi=m.type==='BOTH'&&m.multiUnit;
+  if(multi){doc.fromUnit=$('d-funit').value;doc.toUnit=$('d-tunit').value}else{doc.fromUnit=doc.toUnit=$('d-unit').value}
+  if(!silent&&!isAdd()&&doc.lines.length){doc.lines=[];toast('Unit changed — picked lots cleared, pick again','warn');renderLines()}
+  renderImpact();
+}
+function regChange(){doc.fromReg=$('d-freg').value;doc.toReg=isConv()?doc.fromReg:$('d-treg').value;
+  if(!isAdd()&&doc.lines.length){doc.lines=[];toast('Register changed — picked lots cleared, pick again','warn')}
+  renderLines();}
+function refChange(){doc.refNo=$('d-ref').value;renderRef();if(doc.refNo)loadRef()}
+function renderRef(){const d=REFDOCS.find(x=>x.no===doc.refNo);const box=$('refBox');if(!d){box.classList.add('hidden');return}
+  box.classList.remove('hidden');box.innerHTML=`<span><b>${d.no}</b> · ${esc(REFI[d.type].name)}</span><span>Unit ${unitPill(d.unit)}${d.toUnit?' &#8594; '+unitPill(d.toUnit):''}</span><span>Party <b>${esc(d.party)}</b></span><span>Order <b>${esc(d.order)}</b></span><span>${d.lines.map(l=>esc(yarn(l.yarnCode).count)+' <b>'+fmt(l.qty)+'</b> kg').join(' · ')}</span><span class="sp"></span><button class="btn ghost sm" onclick="loadRef(true)">&#8635; Reload rows from reference</button>`;}
+function loadRef(force){
+  const m=M(),d=REFDOCS.find(x=>x.no===doc.refNo);if(!d)return;
+  if(doc.items.length&&!force&&!confirm('Replace the current yarn rows with the lines of '+d.no+'?'))return;
+  const multi=m.type==='BOTH'&&m.multiUnit;
+  if(multi){$('d-funit').value=d.unit;if(d.toUnit)$('d-tunit').value=d.toUnit}else $('d-unit').value=d.unit;
+  unitChange(true);if(d.party&&PARTIES.includes(d.party))$('d-party').value=d.party;doc.party=$('d-party').value;
+  doc.items=d.lines.map(rl=>({yarnCode:rl.yarnCode,spinner:rl.spinner||'',lot:rl.lot||'',count:rl.count||yarn(rl.yarnCode).count,reqQty:rl.qty}));
+  doc.lines=[];
+  if(isAdd()){/* a return / receipt names the lot: it becomes the line directly. Returns come back loose; receipts mostly in cartons */
+    doc.items.forEach((it,i)=>{let L=LOTS.find(x=>x.lot===it.lot&&x.yarnCode===it.yarnCode);if(!L)L=LOTS.find(x=>x.yarnCode===it.yarnCode);if(!L)return;
+      const pack=pFromKg(L,it.reqQty,m.refInput==='RTN'?1:0.25);
+      doc.lines.push({item:i,lotId:L.id,yarnCode:L.yarnCode,spinner:L.spinner,lot:L.lot,count:L.count,qty:pkg(pack),pack})});}
+  renderLines();
+  toast(doc.items.length+' yarn row(s) set from '+d.no+(isAdd()?'':' — now pick stock for each yarn'),'success');
+}
+/* ---- 3 · yarn rows ---- */
+const rowLines=i=>doc.lines.filter(l=>l.item===i);
+const rowQty=i=>rowLines(i).reduce((a,l)=>a+l.qty,0);
+const rowPack=i=>rowLines(i).reduce((a,l)=>pAdd(a,l.pack),P0());
+function renderLines(){
+  const m=M();if(!m)return;
+  $('tb-lines').innerHTML=doc.items.map((it,i)=>{const y=yarn(it.yarnCode),ls=rowLines(i),q=rowQty(i),p=rowPack(i);
+    const bad=q<=0||(it.reqQty>0&&q>it.reqQty+0.001);
+    const lots=ls.length?ls.map(l=>`<span class="mono">${esc(l.lot)}</span> <span class="muted">${fmt(l.qty)}</span>`).join('<br>'):(it.lot?`<span class="mono muted" title="lot named on the reference">${esc(it.lot)}</span> <span class="muted">(ref)</span>`:'<span class="muted">—</span>');
+    const counts=ls.length?ls.map(l=>`<span class="mono">${esc(l.count)}</span>`).join('<br>'):`<span class="mono muted">${esc(it.count||'')}</span>`;
+    const spinner=ls.length?[...new Set(ls.map(l=>l.spinner))].join(', '):(it.spinner||'<span class="muted">—</span>');
+    return `<tr><td class="center">${i+1}</td><td class="yarn-name">${esc(y.desc)}<span class="av">${esc(y.count)}${ls.length>1?' · '+ls.length+' lots':''}</span></td><td>${spinner}</td><td>${lots}</td><td>${counts}</td>
+      <td class="right mono">${it.reqQty?fmt(it.reqQty):'<span class="muted">—</span>'}</td>${pCells(ls.length?p:null)}<td class="right"><b class="${bad?'ledgerBal dn':'ledgerBal up'}">${fmt(q)}</b>${it.reqQty&&q<it.reqQty-0.001?`<span class="av">short ${fmt(it.reqQty-q)}</span>`:''}</td>
+      <td class="center">${isAdd()?`<button class="btn ghost sm" onclick="addYarnModal(${i})">&#9998; Edit</button>`:`<button class="btn ${ls.length?'ghost':'blue'} sm" onclick="pickStock(${i})">&#128230; ${ls.length?'Change picks':(isConv()?'Choose cartons':'Pick from stock')}</button>`}</td>
+      <td class="center"><span class="lineDel" onclick="removeRow(${i})" title="Remove">&#10005;</span></td></tr>`}).join('')
+    ||`<tr><td colspan="15" class="muted" style="text-align:center;padding:14px">${m.hasRef?'Select the '+esc(REFI[m.refInput].name)+' in the header — its yarns will appear here':'Press <b>Add Yarn</b> to add the first yarn'}</td></tr>`;
+  $('ln-req').innerHTML=m.hasRef?'<span class="mono">'+fmt(doc.items.reduce((a,x)=>a+(x.reqQty||0),0))+'</span>':'';
+  const tp=txnPack(doc);$('ln-pack').innerHTML=doc.lines.length?`<div class="pkSum">${pHtml(tp)}</div>`:'';
+  $('ln-total').textContent=fmt(txnQty(doc));
+  $('lineTip').textContent=isAdd()?'':isConv()?'Total Kg = kg moved from Intake to Lose form; register balance in kg does not change.':'Available = register balance − quantities already committed in Pending Approval documents, per form (Intake / Lose). A yarn may be picked from several lots / locations.';
+  renderImpact();if(doc.lines.length)steps(4);else if(doc.mode)steps(3);
+}
+function removeRow(i){doc.items.splice(i,1);doc.lines=doc.lines.filter(l=>l.item!==i).map(l=>({...l,item:l.item>i?l.item-1:l.item}));renderLines()}
+
+/* ---- Pick from stock modal (Deduction / Both / Conversion): several lots, Intake and Lose per lot ---- */
+let pickRow=-1,PKROWS=[];
+function pickStock(i){
+  const it=doc.items[i];if(!doc.fromReg||!doc.fromUnit){toast('Select the unit and register first','error');return}
+  pickRow=i;const cur=rowLines(i);const conv=isConv();
+  PKROWS=LOTS.filter(L=>L.yarnCode===it.yarnCode).map(L=>({L,bal:packOf(B,L.id,doc.fromUnit,doc.fromReg),av:availPackOf(B,C,L.id,doc.fromUnit,doc.fromReg),pick:cur.find(l=>l.lotId===L.id)}))
+    .filter(r=>pkg(r.bal)>0.001||pCone(r.bal)>0||r.pick).sort((a,b)=>((b.L.lot===it.lot)-(a.L.lot===it.lot))||a.L.recv.localeCompare(b.L.recv));
+  $('vm-title').innerHTML=`${conv?'Choose cartons to open':'Pick from stock'} — ${esc(yarn(it.yarnCode).desc)} <span class="muted" style="font-size:12px;font-weight:400">${unitPill(doc.fromUnit)} ${regPill(doc.fromReg)}</span>`;
+  const inp=(k,idx,r)=>`<input type="number" class="pq" id="pk-${k}-${idx}" data-k="${k}" data-idx="${idx}" min="0" step="${k.endsWith('Kg')?'0.01':'1'}" value="${r.pick?(r.pick.pack[k]||''):''}" ${r.pick?'':'disabled'} oninput="pkChain(${idx},'${k}')">`;
+  $('vm-body').innerHTML=`
+    <div class="refBox" style="margin-bottom:10px"><span>Required <b>${it.reqQty?fmt(it.reqQty)+' kg':'—'}</b></span><span>Picked <b id="pk-sum">${fmt(rowQty(i))}</b> kg</span><span id="pk-pack" class="pkSum"></span><span id="pk-diff" class="muted"></span><span class="sp"></span>${it.lot?`<span class="muted">Reference names lot <span class="mono">${esc(it.lot)}</span> — listed first</span>`:''}</div>
+    <div class="tableScroll"><table class="list" id="pk-tbl"><thead>
+      <tr><th class="chk" rowspan="2"><input type="checkbox" onclick="pkAll(this)"></th><th rowspan="2">Physical Lot</th><th rowspan="2">Spinner</th><th rowspan="2">Count</th><th rowspan="2">Location</th><th rowspan="2">Packing</th><th colspan="3" class="pkGrp">Available Intake</th><th colspan="3" class="pkGrp l">Available Lose</th>${conv?'<th class="right" rowspan="2">Cartons to open</th><th class="right" rowspan="2">= Cones</th><th class="right" rowspan="2">= Kg</th>':'<th colspan="3" class="pkGrp">Pick Intake</th><th colspan="3" class="pkGrp l">Pick Lose</th>'}</tr>
+      <tr><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th>${conv?'':'<th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th>'}</tr></thead><tbody>
+    ${PKROWS.map((r,k)=>`<tr class="${r.L.lot===it.lot?'selected':''}"><td class="chk"><input type="checkbox" class="pk-chk" data-k="${k}" data-lot="${r.L.id}" ${r.pick?'checked':''} onchange="pkToggle(${k})"></td><td class="mono"><b>${esc(r.L.lot)}</b>${r.L.lot===it.lot?' <span class="pill approved">ref</span>':''}</td><td>${esc(r.L.spinner)}</td><td class="mono">${esc(r.L.count)}</td><td>${esc(r.L.zone||'—')}</td><td class="muted" style="font-size:11px">${r.L.cpc} cn/ctn · ${fmt(r.L.kpc)} kg/cn</td>${pCells(r.av)}
+      ${conv?`<td class="right">${inp('iCtn',k,r)}</td><td class="num mono" id="pk-cone-${k}">${r.pick?r.pick.pack.iCone:''}</td><td class="num mono" id="pk-kg-${k}">${r.pick?fmt(r.pick.pack.iKg):''}</td>`:`<td class="right">${inp('iCtn',k,r)}</td><td class="right">${inp('iCone',k,r)}</td><td class="right">${inp('iKg',k,r)}</td><td class="right">${inp('lCtn',k,r)}</td><td class="right">${inp('lCone',k,r)}</td><td class="right">${inp('lKg',k,r)}</td>`}</tr>`).join('')
+      ||`<tr><td colspan="18" class="muted" style="text-align:center;padding:14px">No stock of this yarn in ${doc.fromUnit} / ${REG[doc.fromReg].name} — change the register or unit</td></tr>`}
+    </tbody></table></div>
+    <div class="lineTip">${conv?'Type the number of intake cartons to open per lot; cones and kg follow the lot packing.':'Tick one or more lots / locations. Intake: type cartons, cones and kg follow the packing (editable). Lose: type cones, kg follows; or type kg directly for part cones. Nothing may exceed Available.'}</div>`;
+  $('vm-footer').innerHTML=`<button class="btn ghost" onclick="closeModal('modal-view')">Cancel</button>${PKROWS.length?`${conv?'':`<button class="btn blue" onclick="pkAuto()">&#9889; Auto-pick FIFO${it.reqQty?' for '+fmt(it.reqQty)+' kg':''}</button>`}<button class="btn primary" onclick="pkOk()">&#10003; OK</button>`:''}`;
+  showModal('modal-view');pkSum();
+}
+const pkVal=(k,idx)=>{const e=$('pk-'+k+'-'+idx);return e&&!e.disabled?parseFloat(e.value)||0:0};
+const pkSet=(k,idx,v)=>{const e=$('pk-'+k+'-'+idx);if(e)e.value=v||''};
+function pkRowPack(idx){const r=PKROWS[idx],L=r.L;if(isConv()){const n=Math.round(pkVal('iCtn',idx));return n>0?pBreak(L,n):P0()}return {iCtn:Math.round(pkVal('iCtn',idx)),iCone:Math.round(pkVal('iCone',idx)),iKg:r2(pkVal('iKg',idx)),lCtn:Math.round(pkVal('lCtn',idx)),lCone:Math.round(pkVal('lCone',idx)),lKg:r2(pkVal('lKg',idx))}}
+/* cascade: intake ctn → cone → kg; lose cone → kg + ctn */
+function pkChain(idx,k){const L=PKROWS[idx].L;
+  if(isConv()){const n=Math.round(pkVal('iCtn',idx));$('pk-cone-'+idx).textContent=n?n*L.cpc:'';$('pk-kg-'+idx).textContent=n?fmt(n*L.cpc*L.kpc):'';pkSum();return}
+  if(k==='iCtn'){const n=Math.round(pkVal('iCtn',idx));pkSet('iCone',idx,n*L.cpc);pkSet('iKg',idx,r2(n*L.cpc*L.kpc))}
+  else if(k==='iCone'){const n=Math.round(pkVal('iCone',idx));pkSet('iKg',idx,r2(n*L.kpc));if(n%L.cpc===0)pkSet('iCtn',idx,n/L.cpc)}
+  else if(k==='lCone'){const n=Math.round(pkVal('lCone',idx));pkSet('lKg',idx,r2(n*L.kpc));pkSet('lCtn',idx,n?Math.ceil(n/L.cpc):0)}
+  else if(k==='lKg'){const kg=pkVal('lKg',idx);if(!pkVal('lCone',idx)){const n=Math.ceil(kg/L.kpc);pkSet('lCone',idx,n);pkSet('lCtn',idx,n?Math.ceil(n/L.cpc):0)}}
+  pkSum()}
+function pkToggle(k){const c=document.querySelector(`.pk-chk[data-k="${k}"]`);document.querySelectorAll(`.pq[data-idx="${k}"]`).forEach(q=>{q.disabled=!c.checked;if(!c.checked)q.value=''});
+  if(c.checked&&!isConv()){const it=doc.items[pickRow],r=PKROWS[k];const need=it.reqQty?Math.max(0,it.reqQty-pkTotal()):pkg(r.av);const p=pTake(r.L,r.av,need>0?need:pkg(r.av));PK.forEach(x=>pkSet(x,k,p[x]))}
+  if(c.checked&&isConv()){pkSet('iCtn',k,Math.min(PKROWS[k].av.iCtn,1));pkChain(k,'iCtn')}
+  pkSum()}
+function pkAll(c){document.querySelectorAll('.pk-chk').forEach(x=>{if(x.checked!==c.checked){x.checked=c.checked;pkToggle(parseInt(x.dataset.k))}})}
+function pkTotal(){return PKROWS.reduce((a,r,idx)=>a+(document.querySelector(`.pk-chk[data-k="${idx}"]`)?.checked?pkg(pkRowPack(idx)):0),0)}
+function pkSum(){const it=doc.items[pickRow],t=pkTotal();$('pk-sum').textContent=fmt(t);const d=$('pk-diff');
+  let tot=P0();PKROWS.forEach((r,idx)=>{const on=document.querySelector(`.pk-chk[data-k="${idx}"]`)?.checked;if(!on)return;const p=pkRowPack(idx);tot=pAdd(tot,p);
+    document.querySelectorAll(`.pq[data-idx="${idx}"]`).forEach(q=>{const k=q.dataset.k;q.classList.toggle('bad',(p[k]||0)>(r.av[k]||0)+0.001)})});
+  $('pk-pack').innerHTML=pHtml(tot);
+  if(!it.reqQty){d.textContent='';return}if(t>it.reqQty+0.001){d.textContent='over by '+fmt(t-it.reqQty)+' kg';d.style.color='var(--red)'}else if(t<it.reqQty-0.001){d.textContent='short by '+fmt(it.reqQty-t)+' kg';d.style.color='var(--orange)'}else{d.textContent='exactly as required';d.style.color='var(--erp-green-dark)'}}
+function pkAuto(){const it=doc.items[pickRow];let need=it.reqQty||Infinity;
+  PKROWS.forEach((r,idx)=>{const c=document.querySelector(`.pk-chk[data-k="${idx}"]`);const p=pTake(r.L,r.av,Math.min(need,pkg(r.av)));const q=pkg(p);
+    if(q>0.001){c.checked=true;document.querySelectorAll(`.pq[data-idx="${idx}"]`).forEach(x=>x.disabled=false);PK.forEach(x=>pkSet(x,idx,p[x]));need-=q}else{c.checked=false;document.querySelectorAll(`.pq[data-idx="${idx}"]`).forEach(x=>{x.disabled=true;x.value=''})}});pkSum()}
+function pkOk(){
+  const picks=[];let err='';
+  PKROWS.forEach((r,idx)=>{const c=document.querySelector(`.pk-chk[data-k="${idx}"]`);if(!c||!c.checked)return;const p=pkRowPack(idx);const L=r.L;
+    if(isConv()){if(!(p.iCtn>0))return;if(p.iCtn>r.av.iCtn){err='Lot '+L.lot+': only '+r.av.iCtn+' intake carton(s) available';return}picks.push({item:pickRow,lotId:L.id,yarnCode:L.yarnCode,spinner:L.spinner,lot:L.lot,count:L.count,qty:p.iKg,pack:p});return}
+    if(pkg(p)<=0&&pCone(p)<=0)return;
+    PK.forEach(k=>{if((p[k]||0)>(r.av[k]||0)+0.001&&!err)err='Lot '+L.lot+': '+PK_LBL[k]+' '+p[k]+' exceeds available '+(k.endsWith('Kg')?fmt(r.av[k]):r.av[k])});
+    if(p.iCone>0&&p.iKg<=0&&!err)err='Lot '+L.lot+': intake cones picked but Intake Kg is empty';
+    if(p.lCone>0&&p.lKg<=0&&!err)err='Lot '+L.lot+': lose cones picked but Lose Kg is empty';
+    picks.push({item:pickRow,lotId:L.id,yarnCode:L.yarnCode,spinner:L.spinner,lot:L.lot,count:L.count,qty:pkg(p),pack:p})});
+  if(err){toast(err,'error');return}
+  doc.lines=doc.lines.filter(l=>l.item!==pickRow).concat(picks);closeModal('modal-view');renderLines();
+  toast(picks.length?picks.length+' lot(s) picked · '+fmt(picks.reduce((a,p)=>a+p.qty,0))+' kg':'No lot picked for this yarn','success');
+}
+
+/* ---- Add / edit yarn modal (no reference, or Addition rows) ---- */
+function addYarnModal(editIdx){
+  const m=M();
+  if(!isAdd()){
+    if(!doc.fromReg){toast('Select the register first','error');return}
+    const ys={};LOTS.forEach(L=>{const av=availPackOf(B,C,L.id,doc.fromUnit,doc.fromReg);if(pkg(av)>0.001||(isConv()&&av.iCtn>0)){ys[L.yarnCode]=ys[L.yarnCode]||{lots:0,av:P0(),sp:new Set()};ys[L.yarnCode].lots++;ys[L.yarnCode].av=pAdd(ys[L.yarnCode].av,av);ys[L.yarnCode].sp.add(L.spinner)}});
+    const keys=Object.keys(ys).filter(k=>!isConv()||ys[k].av.iCtn>0).sort();
+    $('vm-title').innerHTML=`Add Yarn <span class="muted" style="font-size:12px;font-weight:400">— yarns with ${isConv()?'intake cartons':'available stock'} in ${unitPill(doc.fromUnit)} ${regPill(doc.fromReg)}</span>`;
+    $('vm-body').innerHTML=`<div class="toolbar" style="margin-bottom:8px"><input class="search" id="ay-q" placeholder="🔍 Filter yarn / spinner…" oninput="[...document.querySelectorAll('#ay-tbl tbody tr')].forEach(r=>r.style.display=r.innerText.toLowerCase().includes(this.value.toLowerCase())?'':'none')"></div>
+      <div class="tableScroll"><table class="list" id="ay-tbl"><thead><tr><th rowspan="2">Yarn Description</th><th rowspan="2">Count</th><th rowspan="2">Spinner(s)</th><th class="right" rowspan="2">Lots</th><th colspan="3" class="pkGrp">Available Intake</th><th colspan="3" class="pkGrp l">Available Lose</th><th class="right" rowspan="2">Total Kg</th><th rowspan="2"></th></tr><tr><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th><th class="right">Ctn</th><th class="right">Cone</th><th class="right">Kg</th></tr></thead><tbody>
+      ${keys.map(k=>{const used=doc.items.some(x=>x.yarnCode===k);return `<tr class="${used?'sub':''}"><td class="yarn-name">${esc(yarn(k).desc)}</td><td class="mono">${esc(yarn(k).count)}</td><td>${[...ys[k].sp].join(', ')}</td><td class="num">${ys[k].lots}</td>${pCells(ys[k].av)}<td class="num"><b>${fmt(pkg(ys[k].av))}</b></td><td>${used?'<span class="pill approved">added</span>':`<button class="btn primary sm" onclick="addYarnRow('${k}')">&#43; Select</button>`}</td></tr>`}).join('')||'<tr><td colspan="12" class="muted" style="text-align:center;padding:14px">No yarn has available stock in this register</td></tr>'}
+      </tbody></table></div>`;
+    $('vm-footer').innerHTML=`<button class="btn ghost" onclick="closeModal('modal-view')">Close</button>`;showModal('modal-view');return;
+  }
+  /* Addition: yarn, spinner, lot (known or new), count, packing, then Intake / Lose quantities */
+  const it=editIdx>=0?doc.items[editIdx]:null,ln=it?rowLines(editIdx)[0]:null,p=ln?ln.pack:P0();
+  $('vm-title').textContent=it?'Edit yarn line':'Add Yarn';
+  const pin=(k,lbl)=>`<div class="fld"><label>${lbl}</label><input id="ay-${k}" type="number" min="0" step="${k.endsWith('Kg')?'0.01':'1'}" value="${p[k]||''}" oninput="ayChain('${k}')"></div>`;
+  $('vm-body').innerHTML=`<div class="fields" style="grid-template-columns:repeat(4,1fr)">
+      <div class="fld w2"><label>Yarn <span class="req">*</span></label><select id="ay-yarn" onchange="ayLots()">${Object.keys(YARNS).map(c=>`<option value="${c}" ${it&&it.yarnCode===c?'selected':''}>${esc(YARNS[c].count)} · ${esc(YARNS[c].desc)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Spinner <span class="req">*</span></label><select id="ay-spinner">${opts(SPINNERS,it?it.spinner:SPINNERS[0])}</select></div>
+      <div class="fld"><label>Physical Lot <span class="req">*</span> <span class="muted">(known or new)</span></label><input id="ay-lot" list="ay-lots" value="${esc(it?it.lot:'')}" oninput="ayLotPick()" placeholder="Lot no."><datalist id="ay-lots"></datalist></div>
+      <div class="fld"><label>Physical Count</label><input id="ay-count" value="${esc(it?it.count:'')}" placeholder="e.g. 30.1"></div>
+      <div class="fld"><label>Cones / Carton</label><input id="ay-cpc" type="number" min="1" step="1" value="${ln?(lotById(ln.lotId)||{}).cpc||24:24}" oninput="ayChain('iCtn')"></div>
+      <div class="fld"><label>Kg / Cone</label><input id="ay-kpc" type="number" min="0.1" step="0.01" value="${ln?(lotById(ln.lotId)||{}).kpc||1.89:1.89}" oninput="ayChain('iCtn');ayChain('lCone')"></div>
+      <div class="fld"><label>&nbsp;</label><div class="muted" id="ay-ck" style="padding-top:6px"></div></div>
+      <div class="fld w2" style="grid-column:span 4"><div class="secTitle">Intake (unopened cartons)</div></div>
+      ${pin('iCtn','Intake Carton')}${pin('iCone','Intake Cone')}${pin('iKg','Intake Kg')}<div class="fld"><label>&nbsp;</label><div class="muted" style="padding-top:6px">cartons → cones → kg follow the packing</div></div>
+      <div class="fld w2" style="grid-column:span 4"><div class="secTitle">Lose (opened / loose)</div></div>
+      ${pin('lCtn','Lose Carton')}${pin('lCone','Lose Cone')}${pin('lKg','Lose Kg')}<div class="fld"><label>Total Kg</label><input id="ay-total" class="readonly" readonly value="${fmt(pkg(p))}"></div>
+    </div><div class="lineTip" id="ay-tip"></div>`;
+  $('vm-footer').innerHTML=`<button class="btn ghost" onclick="closeModal('modal-view')">Cancel</button><button class="btn primary" onclick="ayOk(${it?editIdx:-1})">&#10003; OK</button>`;
+  showModal('modal-view');ayLots();ayChain();
+}
+const ayV=id=>parseFloat($(id).value)||0;
+function ayChain(k){const cpc=Math.max(1,Math.round(ayV('ay-cpc'))),kpc=ayV('ay-kpc')||1;$('ay-ck').textContent=fmt(cpc*kpc)+' kg / carton';
+  if(k==='iCtn'){const n=Math.round(ayV('ay-iCtn'));if(n){$('ay-iCone').value=n*cpc;$('ay-iKg').value=r2(n*cpc*kpc)}}
+  else if(k==='iCone'){const n=Math.round(ayV('ay-iCone'));$('ay-iKg').value=n?r2(n*kpc):'';if(n&&n%cpc===0)$('ay-iCtn').value=n/cpc}
+  else if(k==='lCone'){const n=Math.round(ayV('ay-lCone'));$('ay-lKg').value=n?r2(n*kpc):'';$('ay-lCtn').value=n?Math.ceil(n/cpc):''}
+  else if(k==='lKg'){const kg=ayV('ay-lKg');if(!ayV('ay-lCone')&&kg){const n=Math.ceil(kg/kpc);$('ay-lCone').value=n;$('ay-lCtn').value=Math.ceil(n/cpc)}}
+  $('ay-total').value=fmt(ayV('ay-iKg')+ayV('ay-lKg'))}
+function ayLots(){const yc=$('ay-yarn').value;const ls=LOTS.filter(L=>L.yarnCode===yc);$('ay-lots').innerHTML=ls.map(L=>`<option value="${esc(L.lot)}">${esc(L.spinner)} · count ${esc(L.count)} · ${L.cpc} cn/ctn · ${fmt(L.kpc)} kg/cn</option>`).join('');
+  $('ay-tip').textContent=ls.length?'Known lots of this yarn: '+ls.map(L=>L.lot).join(', ')+' — pick one to return into it, or type a new lot number with its packing.':'No lot of this yarn exists yet — the lot you type will be created with the packing entered.';ayLotPick()}
+function ayLotPick(){const L=LOTS.find(x=>x.lot.toLowerCase()===$('ay-lot').value.trim().toLowerCase());const lock=!!L;
+  if(L){$('ay-spinner').value=L.spinner;$('ay-count').value=L.count;$('ay-cpc').value=L.cpc;$('ay-kpc').value=L.kpc}
+  $('ay-spinner').disabled=lock;$('ay-count').readOnly=lock;$('ay-cpc').readOnly=lock;$('ay-kpc').readOnly=lock;ayChain()}
+function ayOk(editIdx){
+  const yc=$('ay-yarn').value,sp=$('ay-spinner').value,lot=$('ay-lot').value.trim(),cnt=$('ay-count').value.trim();
+  const p={iCtn:Math.round(ayV('ay-iCtn')),iCone:Math.round(ayV('ay-iCone')),iKg:r2(ayV('ay-iKg')),lCtn:Math.round(ayV('ay-lCtn')),lCone:Math.round(ayV('ay-lCone')),lKg:r2(ayV('ay-lKg'))};
+  if(!lot){toast('Enter the physical lot number','error');return}if(pkg(p)<=0){toast('Enter Intake and/or Lose quantities','error');return}
+  if(p.iCone>0&&p.iKg<=0){toast('Intake Kg is required when intake cones are entered','error');return}if(p.lCone>0&&p.lKg<=0){toast('Lose Kg is required when lose cones are entered','error');return}
+  let L=LOTS.find(x=>x.lot.toLowerCase()===lot.toLowerCase());
+  if(L&&L.yarnCode!==yc){toast('Lot '+L.lot+' already exists as '+yarn(L.yarnCode).desc,'error');return}
+  if(!L){L={id:SEQ.LOT++,yarnCode:yc,spinner:sp,lot,count:cnt||yarn(yc).count,recv:doc.date||TODAY,cpc:Math.max(1,Math.round(ayV('ay-cpc'))),kpc:ayV('ay-kpc')||1.89,zone:ZONES[0]};LOTS.push(L);saveDB()}
+  const item={yarnCode:L.yarnCode,spinner:L.spinner,lot:L.lot,count:L.count,reqQty:editIdx>=0?doc.items[editIdx].reqQty:0};
+  const idx=editIdx>=0?editIdx:doc.items.push(item)-1;if(editIdx>=0)doc.items[idx]=item;
+  doc.lines=doc.lines.filter(l=>l.item!==idx).concat([{item:idx,lotId:L.id,yarnCode:L.yarnCode,spinner:L.spinner,lot:L.lot,count:L.count,qty:pkg(p),pack:p}]);
+  closeModal('modal-view');renderLines();
+}
+function addYarnRow(yc){doc.items.push({yarnCode:yc,spinner:'',lot:'',count:yarn(yc).count,reqQty:0});closeModal('modal-view');renderLines();pickStock(doc.items.length-1)}
+
+/* ---- 4 · impact (vertical table) ---- */
+function renderImpact(){
+  const m=M();if(!m)return;const el=$('impact');
+  if(!doc.lines.length){el.innerHTML='<div class="impactRow empty muted">Pick stock for the yarn rows to see how the registers will move.</div>';$('impact-hint').textContent='';$('audit').innerHTML='';return}
+  const conv=m.type==='CONV',from=m.type!=='ADD'&&!conv,to=m.type==='ADD'||m.type==='BOTH';
+  el.innerHTML=`<div class="tableScroll"><table class="list impactTbl"><thead><tr><th>#</th><th>Yarn</th><th>Physical Lot</th><th>Moved (Intake / Lose)</th><th class="right">Kg</th>${conv?`<th>Cell</th><th class="right">Intake Ctn before → after</th><th class="right">Lose Cone before → after</th><th class="right">Kg (unchanged)</th>`:''}${from?`<th>From</th><th class="right">Before Kg</th><th class="right">After Kg</th><th>After form</th>`:''}${to?`<th>To</th><th class="right">Before Kg</th><th class="right">After Kg</th><th>After form</th>`:''}</tr></thead><tbody>
+    ${doc.lines.map((l,i)=>{const y=yarn(l.yarnCode);let s=`<tr><td>${i+1}</td><td class="yarn-name">${esc(y.count)} <span class="muted">${esc(y.desc)}</span></td><td class="mono">${esc(l.lot)}</td><td>${pHtml(l.pack)}</td><td class="num"><b>${fmt(l.qty)}</b></td>`;
+      if(conv){const b=packOf(B,l.lotId,doc.fromUnit,doc.fromReg);s+=`<td>${unitPill(doc.fromUnit)} ${regCode(doc.fromReg)}</td><td class="num">${b.iCtn} &#8594; <b>${b.iCtn-l.pack.iCtn}</b></td><td class="num">${b.lCone} &#8594; <b>${b.lCone+l.pack.lCone}</b></td><td class="num">${fmt(pkg(b))}</td>`}
+      if(from){const b=packOf(B,l.lotId,doc.fromUnit,doc.fromReg),a=pAdd(b,l.pack,-1);s+=`<td>${unitPill(doc.fromUnit)} ${regCode(doc.fromReg)}</td><td class="num">${fmt(pkg(b))}</td><td class="num ledgerBal dn">${fmt(pkg(a))}</td><td>${pHtml(a)}</td>`}
+      if(to){const b=packOf(B,l.lotId,doc.toUnit,doc.toReg),a=pAdd(b,l.pack);s+=`<td>${unitPill(doc.toUnit)} ${regCode(doc.toReg||'')}</td><td class="num">${fmt(pkg(b))}</td><td class="num ledgerBal up">${fmt(pkg(a))}</td><td>${pHtml(a)}</td>`}
+      return s+'</tr>'}).join('')}
+    </tbody><tfoot><tr><td colspan="3" class="right"><b>Total</b></td><td>${pHtml(txnPack(doc))}</td><td class="num"><b>${fmt(txnQty(doc))}</b></td>${conv?`<td colspan="4" class="muted">${txnPack(doc).iCtn} carton(s) opened — register kg unchanged</td>`:''}${from?`<td colspan="4" class="muted">− ${fmt(txnQty(doc))} kg from ${REG[doc.fromReg]?REG[doc.fromReg].name:''}</td>`:''}${to?`<td colspan="4" class="muted">+ ${fmt(txnQty(doc))} kg into ${REG[doc.toReg]?REG[doc.toReg].name:''}</td>`:''}</tr></tfoot></table></div>`;
+  $('impact-hint').textContent=m.approval?'Figures apply after Store Manager approval':'Figures apply immediately on Post';
+  $('audit').innerHTML=`<span>Prepared by <b>${esc(USER.name)}</b></span><span>Status <b>${doc.status}</b></span>${m.approval?'<span>Approver <b>'+esc(APPROVER.name)+' · '+esc(APPROVER.role)+'</b></span>':''}`;
+}
+/* ---- save / submit ---- */
+function collect(){doc.date=$('d-date').value;doc.party=$('d-party').value;doc.remarks=$('d-remarks').value.trim();const m=M();if(m){doc.fromReg=m.type==='ADD'?'':$('d-freg').value;doc.toReg=m.type==='DED'?'':m.type==='CONV'?doc.fromReg:$('d-treg').value;doc.refNo=m.hasRef?$('d-ref').value:$('d-refman').value.trim();doc.refType=m.refInput;unitChange(true)}}
+function persist(){if(!doc.no){doc.no=nextNo('DT');TXNS.push(doc)}saveDB()}
+function saveDraft(){if(!doc.mode){toast('Choose a transaction mode first','error');return}collect();doc.status='Draft';persist();toast(doc.no+' saved as draft','success');closeForm();setTab('draft')}
+function submitDoc(){
+  collect();const m=M();if(!m){toast('Choose a transaction mode first','error');return}
+  if((m.code==='TM-011'||m.code==='TM-012')&&!doc.remarks){toast('Adjustment needs evidence — write the count sheet / reason in Remarks','error');return}
+  const err=validateTxn(doc);
+  if(!m.hasRef&&!doc.refNo)err.push('Reference No. is required — type the order, memo or count sheet number');
+  doc.items.forEach((it,i)=>{const q=rowQty(i);if(q<=0)err.push('Row '+(i+1)+' ('+yarn(it.yarnCode).count+'): no stock picked');else if(it.reqQty&&q>it.reqQty+0.001)err.push('Row '+(i+1)+': picked '+fmt(q)+' exceeds the reference quantity '+fmt(it.reqQty))});
+  const eb=$('errBox');
+  if(err.length){eb.classList.remove('hidden');eb.innerHTML='<b>Cannot submit:</b><ul style="margin:4px 0 0 18px">'+err.map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>';toast(err[0],'error');return}
+  eb.classList.add('hidden');
+  const d=doc;
+  if(m.approval){d.status='Pending Approval';persist();closeForm();setTab('pending');
+    showSuccess('Submitted for approval',d.no,`<b>${esc(m.name)}</b> · ${fmt(txnQty(d))} kg · ${d.lines.length} lot line(s). Stock is <b>committed</b> (shown as reduced Available) but moves only when <b>${esc(APPROVER.name)}</b> approves.`,`Store Manager opens the <b>Pending Approval List</b> and presses Approve. <a href="${PAGES.dash.file}">Dashboard</a> shows it under Pending.`);}
+  else{d.status='Approved';d.approvedBy=USER.name;d.approvedOn=TODAY;persist();closeForm();setTab('approved');
+    showSuccess('Transaction posted',d.no,`<b>${esc(m.name)}</b> · ${fmt(txnQty(d))} kg · ${d.lines.length} lot line(s). Stock registers are updated.`,`See the new balances in the <a href="${PAGES.ledger.file}">Stock Register Ledger</a> or the <a href="${PAGES.dash.file}">Dashboard</a>.`);}
+}
+
+/* ---- boot ---- */
+refresh();
+if(qs.get('tab'))setTab(qs.get('tab'));
+if(qs.get('view'))viewTxn(qs.get('view'));
+if(qs.get('edit'))openForm(qs.get('edit'));
+else if(qs.get('new')){openForm();if(qs.get('mode')){$('d-mode').value=qs.get('mode');pickMode(qs.get('mode'));
+  if(qs.get('ref')&&M().hasRef){const d=REFDOCS.find(x=>x.no===qs.get('ref'));if(d){$('d-ref').value=d.no;refChange();if(!doc.fromReg&&M().fromRegs.includes('ALC')){$('d-freg').value='ALC';regChange()}}}}}
+</script>
+</body>
+</html>

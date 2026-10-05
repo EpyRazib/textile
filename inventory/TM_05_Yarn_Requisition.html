@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Yarn Requisition — Yarn Stock Management</title>
+<link rel="stylesheet" href="assets/tm-ui.css">
+<script src="assets/tm-app.js"></script>
+<style>
+  .genGrid{display:grid;grid-template-columns:1fr 1.3fr;gap:16px;align-items:start}
+  .genGrid .kv2{display:grid;grid-template-columns:150px 1fr;gap:8px 12px;align-items:center;font-size:12.5px}
+  .genGrid .kv2 label{font-weight:600;color:var(--ink-soft)}
+  .genGrid .kv2 input,.genGrid .kv2 select{border:1px solid var(--gray-3);border-radius:5px;padding:6px 9px;font-size:12.5px;width:100%;background:#FFF}
+  .genGrid .kv2 input.readonly{background:var(--gray-2);color:var(--gray-5)}
+  .cTable{width:100%;border-collapse:collapse;font-size:12.5px;background:#FFF}
+  .cTable th,.cTable td{border:1px solid var(--gray-3);padding:6px 9px;text-align:left}
+  .cTable th{background:var(--gray-1);font-size:11.5px;color:var(--gray-5);font-weight:600}
+  table.items.reqItems th,table.items.reqItems td{font-size:11.5px;padding:5px 6px;white-space:nowrap}
+  table.items.reqItems td input,table.items.reqItems td select{border:1px solid var(--gray-3);border-radius:4px;padding:4px 6px;font-size:11.5px}
+  table.items.reqItems td input.q{width:84px;text-align:right;border-bottom:2px solid var(--erp-green)}
+  table.items.reqItems td input.q.bad{border-color:var(--red);background:#FEF2F2}
+  table.items.reqItems td input.rm{width:120px}
+  table.items.reqItems td select.lot{width:130px}table.items.reqItems td select.sp{width:130px}
+  table.items.reqItems td select.bad{border-color:var(--red);background:#FEF2F2}
+  .cmd{display:flex;gap:8px;justify-content:center}.cmd span{cursor:pointer;font-size:14px}.cmd span.del{color:var(--red)}.cmd span.cp{color:var(--blue)}
+  .ydTag{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700}
+  .ydTag.yd{background:#DBEAFE;color:#1E40AF}.ydTag.grey{background:#F3F4F6;color:#374151}
+  tr.noAlloc td{color:var(--gray-4)}
+</style>
+</head>
+<body>
+<div id="chrome"></div>
+
+<div class="page">
+  <!-- ============ LIST ============ -->
+  <div id="listView">
+    <h1 class="title">Knitting Yarn Requisition <span class="deptBadge">KNITTING</span></h1>
+    <div class="subtitle">The floor requisitions yarn from the lots <b>allocated</b> to its fabric bookings and submits to <b>MCD</b>. Grey yarn and YD yarn sit in different stores, so a requisition holds one kind only. Once MCD approves, the store issues against it in Daily Transaction.</div>
+
+    <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+      <div class="kpi k-orange clickable" onclick="setTab('pending')"><div><div class="num" id="k-items">0</div><div class="lbl">Booking yarn lines pending</div><div class="sub2" id="k-items-kg"></div></div></div>
+      <div class="kpi clickable" onclick="setTab('list')"><div><div class="num" id="k-draft">0</div><div class="lbl">Drafts</div></div></div>
+      <div class="kpi k-blue clickable" onclick="setTab('list')"><div><div class="num" id="k-sub">0</div><div class="lbl">Pending at MCD</div><div class="sub2" id="k-sub-kg"></div></div></div>
+      <div class="kpi k-green clickable" onclick="setTab('approved')"><div><div class="num" id="k-appr">0</div><div class="lbl">Approved · open for issue</div><div class="sub2" id="k-appr-kg"></div></div></div>
+      <div class="kpi k-purple clickable" onclick="setTab('ack')"><div><div class="num" id="k-ack">0</div><div class="lbl">To acknowledge</div></div></div>
+    </div>
+
+    <div class="subtabs" id="tabs">
+      <button class="subtab active" data-t="pending">&#9203; Pending <span class="badge" id="tc-pending">0</span></button>
+      <button class="subtab" data-t="list">&#9776; Requisition List <span class="badge" id="tc-list">0</span></button>
+      <button class="subtab" data-t="approved">&#9776; Approved List <span class="badge" id="tc-approved">0</span></button>
+      <button class="subtab" data-t="ack">&#9745; Acknowledge List <span class="badge" id="tc-ack">0</span></button>
+    </div>
+
+    <!-- pending booking yarn lines -->
+    <div class="gridCard" id="tab-pending">
+      <div class="toolbar">
+        <button class="btn primary" id="btn-create" disabled onclick="createFromSel()">&#43; Create</button>
+        <span class="sel"><b id="selCount">0</b> line(s) selected</span>
+        <span class="muted" style="font-size:11.5px">select Grey lines or YD lines, not both</span>
+        <span class="sp"></span>
+        <input type="text" class="search" id="c-q" placeholder="🔍 Booking, buyer, colour, yarn…">
+        <span class="lbl">Buyer</span><select id="c-buyer"></select>
+        <span class="lbl">Yarn Dyed</span><select id="c-dyed"><option value="">All</option><option value="1">Yes (YD store)</option><option value="0">No (Grey store)</option></select>
+        <label class="lbl" style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="c-noalloc"> show not-yet-allocated</label>
+      </div>
+      <div class="tableScroll"><table class="list wide">
+        <thead><tr><th class="chk"><input type="checkbox" id="chkAll" onclick="toggleAll(this)"></th><th class="f">Fabric Booking No</th><th>Fabric Booking Date</th><th>Item Type</th><th class="f">Buyer</th><th>Buyer Team</th><th>Technical Name</th><th>Composition</th><th>Color</th><th class="right">GSM</th><th>Use In</th><th class="right">Fabric Booking Qty</th><th class="f">Yarn Description</th><th>Yarn Dyed</th><th class="right">Yarn Booking Qty</th><th class="right">Allocated Qty</th><th class="right">Requisition Created Qty</th><th class="right">Balanced Quantity</th></tr></thead>
+        <tbody id="tb-items"></tbody></table></div>
+      <div class="lineTip">Balanced Quantity = Allocated Qty − Issued Qty − requisition quantity not yet issued. A requisition can never exceed the allocated quantity.</div>
+      <div class="pager" id="pg-items"></div>
+    </div>
+
+    <!-- requisition list -->
+    <div class="gridCard hidden" id="tab-list">
+      <div class="toolbar">
+        <input type="text" class="search" id="r-q" placeholder="🔍 Requisition no, booking, buyer, yarn…">
+        <span class="lbl">Status</span><select id="r-status"><option value="">All</option><option>Draft</option><option>Submitted</option><option>Rejected</option></select>
+        <span class="lbl">Company</span><select id="r-unit"></select>
+        <span class="sp"></span>
+        <button class="btn warn" onclick="openForm()">&#43; Create (blank)</button>
+      </div>
+      <div class="tableScroll"><table class="list wide">
+        <thead><tr><th>Manage</th><th class="f">Requisition No</th><th>Requisition Date</th><th>Company</th><th>Type</th><th>Floor / Sub-Contractor</th><th>Booking(s)</th><th>Buyer</th><th class="right">Lines</th><th class="right">Req Qty (Kg)</th><th class="right">Req Cone</th><th>Status</th><th>Raised by</th><th>Submitted</th><th>MCD</th></tr></thead>
+        <tbody id="tb-list"></tbody></table></div>
+      <div class="pager" id="pg-list"></div>
+    </div>
+
+    <!-- approved -->
+    <div class="gridCard hidden" id="tab-approved">
+      <div class="toolbar"><span class="lbl">Approved by MCD and open for issue. The store issues against these in Daily Transaction (Knitting Issue for Grey, YD Issue for YD).</span><span class="sp"></span></div>
+      <div class="tableScroll"><table class="list wide">
+        <thead><tr><th>Manage</th><th class="f">Requisition No</th><th>Date</th><th>Company</th><th>Type</th><th>Floor</th><th>Booking(s)</th><th>Buyer</th><th class="right">Req Qty (Kg)</th><th class="right">Issued (Kg)</th><th class="right">Balance</th><th>Issue progress</th><th>Approved by</th><th>Approved on</th></tr></thead>
+        <tbody id="tb-approved"></tbody></table></div>
+      <div class="pager" id="pg-approved"></div>
+    </div>
+
+    <!-- acknowledge -->
+    <div class="gridCard hidden" id="tab-ack">
+      <div class="toolbar"><span class="lbl">Requisitions whose yarn has been issued. The floor acknowledges receipt to close the requisition.</span><span class="sp"></span></div>
+      <div class="tableScroll"><table class="list wide">
+        <thead><tr><th>Manage</th><th class="f">Requisition No</th><th>Date</th><th>Company</th><th>Floor</th><th>Booking(s)</th><th class="right">Req Qty (Kg)</th><th class="right">Issued (Kg)</th><th>Issue docs</th><th>Status</th><th>Acknowledged by</th><th>On</th></tr></thead>
+        <tbody id="tb-ack"></tbody></table></div>
+      <div class="pager" id="pg-ack"></div>
+    </div>
+  </div>
+
+  <!-- ============ FORM ============ -->
+  <div id="formView" class="formView hidden">
+    <div class="formTop">
+      <h2 id="f-title">Knitting Yarn Requisition <span class="no" id="f-no"></span></h2>
+      <span class="meta" id="f-meta"></span>
+      <span class="sp"></span>
+      <button class="btn ghost" onclick="closeForm()">&#171; Back to List</button>
+      <button class="btn blue" onclick="saveReq(false)">&#128190; Save</button>
+      <button class="btn primary" onclick="saveReq(true)">&#10148; Submit to MCD</button>
+    </div>
+
+    <div class="card"><div class="cardHead"><h3>General Information</h3><span class="lnk" id="storeTag"></span></div><div class="cardBody">
+      <div class="genGrid">
+        <div class="kv2">
+          <label>Requisition No</label><input id="r-no" class="readonly" readonly>
+          <label>Requisition Date</label><input type="date" id="r-date">
+          <label>Company</label><select id="r-company" onchange="companyChange()"></select>
+          <label>Floor / Sub-Contractor</label><select id="r-floor"></select>
+          <label>YD Requisition?</label><label class="chkRow" style="padding:0"><input type="checkbox" id="r-yd" disabled> <span class="muted" id="r-yd-hint">set by the yarn: dyed yarn → YD store, YD-series number; grey yarn → Grey store, KR-series</span></label>
+          <label>Remarks</label><input id="r-remarks" placeholder="Optional">
+        </div>
+        <div>
+          <table class="cTable"><thead><tr><th style="width:36px"></th><th>Booking No</th><th>Booking Date</th><th>Buyer</th><th>Technical Name</th><th>Color</th><th class="right">Yarn Req (Kg)</th></tr></thead><tbody id="tb-fbookings"></tbody></table>
+          <div style="margin-top:8px"><button class="btn primary sm" onclick="addItemModal()">&#43; Add Item</button></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="card" style="margin-top:12px"><div class="cardHead"><h3>Item Information</h3><span class="lnk muted">one row per booking yarn <b>and lot</b> · copy a row to take the same yarn from another allocated lot · Requisition Qty ≤ Pending Qty of that lot</span></div><div class="cardBody">
+      <div class="linesWrap"><table class="items reqItems">
+        <thead><tr><th>Commands</th><th>Booking No</th><th>Fabric Technical Name</th><th>Fabric Composition</th><th>Yarn Description</th><th>Spinner</th><th>Physical Lot</th><th>Physical Count</th><th class="right">Allocated Qty</th><th class="right">Submitted Req. Qty.</th><th class="right">Pending Qty.</th><th class="right">Requisition Qty. (Kg)</th><th class="right">Requisition Cone (Pcs)</th><th>Remarks</th></tr></thead>
+        <tbody id="tb-rows"></tbody>
+        <tfoot><tr><td colspan="8" class="right"><b>Total</b></td><td class="right" id="t-alloc"></td><td class="right" id="t-sub"></td><td class="right" id="t-pend"></td><td class="right"><b id="t-qty">0.00</b></td><td class="right" id="t-cone"></td><td></td></tr></tfoot>
+      </table></div>
+      <div class="notebox red hidden" id="errBox"></div>
+      <div class="audit" id="audit"></div>
+    </div></div>
+  </div>
+</div>
+
+<script>
+renderChrome('req');
+const qs=new URLSearchParams(location.search);
+let tab='pending',R=null;
+const FLOOR_LIST=Object.keys(FLOORS);
+const bookingBuyer=r=>[...new Set(r.bookings.map(b=>(booking(b)||{}).buyer).filter(Boolean))].join(', ');
+const reqCone=r=>r.lines.reduce((a,l)=>a+(l.cone||0),0);
+const ydTag=yd=>`<span class="ydTag ${yd?'yd':'grey'}">${yd?'YD yarn · YD store':'Grey yarn · Grey store'}</span>`;
+/* booking yarn lines = the items the floor requisitions; figures come from the allocation */
+const bookingLines=()=>BOOKINGS.flatMap(b=>b.yarns.map(y=>({b,y,f:bookingYarnFigures(b,y),need:Math.max(0,y.qty-requisitioned(b.no,y.yarnCode,null,false))})));
+const pendingLines=()=>bookingLines().filter(x=>x.f.balanced>0.001);
+const unallocLines=()=>bookingLines().filter(x=>x.f.balanced<=0.001&&x.need>0.001);
+
+/* ================= LIST ================= */
+$('c-buyer').innerHTML=opts([...new Set(BOOKINGS.map(b=>b.buyer))].sort(),'','All');$('r-unit').innerHTML=opts(UNITS,'','All');
+function setTab(t){tab=t;document.querySelectorAll('#tabs .subtab').forEach(b=>b.classList.toggle('active',b.dataset.t===t));['pending','list','approved','ack'].forEach(x=>$('tab-'+x).classList.toggle('hidden',x!==t))}
+document.querySelectorAll('#tabs .subtab').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
+const toAck=()=>REQS.filter(r=>r.status==='Approved'&&issuedAgainst(r.no)>=reqQty(r)-0.001&&reqQty(r)>0);
+function refresh(){
+  const pl=pendingLines(),sub=REQS.filter(r=>r.status==='Submitted'),ap=REQS.filter(r=>r.status==='Approved');
+  $('k-items').textContent=pl.length;$('k-items-kg').textContent=fmt0(pl.reduce((a,x)=>a+x.f.balanced,0))+' kg allocated, not yet requisitioned · '+unallocLines().length+' line(s) await allocation';
+  $('k-draft').textContent=REQS.filter(r=>r.status==='Draft').length;$('k-sub').textContent=sub.length;$('k-sub-kg').textContent=fmt0(sub.reduce((a,r)=>a+reqQty(r),0))+' kg';
+  $('k-appr').textContent=ap.length;$('k-appr-kg').textContent=fmt0(ap.reduce((a,r)=>a+reqQty(r)-issuedAgainst(r.no),0))+' kg still to issue';$('k-ack').textContent=toAck().length;
+  $('tc-pending').textContent=pl.length;$('tc-list').textContent=REQS.filter(r=>['Draft','Submitted','Rejected'].includes(r.status)).length;$('tc-approved').textContent=ap.length;$('tc-ack').textContent=toAck().length+REQS.filter(r=>r.status==='Acknowledged').length;
+  renderItems();renderReqList();renderApproved();renderAck();
+}
+function renderItems(){
+  const q=($('c-q').value||'').toLowerCase(),bu=$('c-buyer').value,dy=$('c-dyed').value,na=$('c-noalloc').checked;
+  const rows=(na?pendingLines().concat(unallocLines()):pendingLines()).filter(x=>(!bu||x.b.buyer===bu)&&(dy===''||(dy==='1')===!!x.y.dyed)&&(!q||[x.b.no,x.b.buyer,x.b.color,x.b.composition,x.b.tech,x.b.team,yarn(x.y.yarnCode).desc].join(' ').toLowerCase().includes(q)));
+  const slice=pager('items',rows);
+  $('tb-items').innerHTML=slice.map(x=>{const b=x.b,y=x.y,f=x.f,ok=f.balanced>0.001;return `<tr class="dataRow ${ok?'':'noAlloc'}">
+    <td class="chk"><input type="checkbox" class="rowchk" value="${b.no}|${y.yarnCode}" data-dyed="${y.dyed?1:0}" ${ok?'':'disabled'} onclick="selChange()"></td><td class="mono"><b>${b.no}</b></td><td>${fmtDate(b.date)}</td><td>${esc(b.itemType)}</td>
+    <td>${esc(b.buyer)}</td><td>${esc(b.team)}</td><td>${esc(b.tech)}</td><td class="yarn-name">${esc(b.composition)}</td><td>${esc(b.color)}</td><td class="num">${b.gsm}</td><td>${esc(b.usesIn)}</td><td class="num">${fmt0(b.fabricQty)}</td>
+    <td class="yarn-name">${esc(yarn(y.yarnCode).desc)}</td><td>${yn(y.dyed)}</td><td class="num">${fmt(y.qty)}</td><td class="num">${f.alloc?fmt(f.alloc):'<span class="muted">—</span>'}<span class="av">${allocsOf(b.no,y.yarnCode).map(a=>lotById(a.lotId).lot).join(', ')||'not allocated yet'}</span></td><td class="num">${f.created?fmt(f.created):'<span class="muted">—</span>'}</td>
+    <td class="num"><b>${fmt(f.balanced)}</b><span class="av">${f.issued?'issued '+fmt(f.issued)+' · ':''}${f.openReq?'open req '+fmt(f.openReq):(f.alloc?'':'awaiting allocation')}</span></td></tr>`}).join('')
+    ||'<tr><td colspan="18" class="muted" style="text-align:center;padding:16px">Every allocated booking yarn line is requisitioned</td></tr>';
+  selChange();
+}
+function renderReqList(){
+  const q=($('r-q').value||'').toLowerCase(),st=$('r-status').value,u=$('r-unit').value;
+  const rows=REQS.filter(r=>['Draft','Submitted','Rejected'].includes(r.status)&&(!st||r.status===st)&&(!u||r.company===u)&&(!q||[r.no,r.bookings.join(' '),bookingBuyer(r),r.lines.map(l=>yarn(l.yarnCode).desc).join(' ')].join(' ').toLowerCase().includes(q)))
+    .sort((a,b)=>b.date.localeCompare(a.date)||b.no.localeCompare(a.no));
+  const slice=pager('list',rows);
+  $('tb-list').innerHTML=slice.map(r=>`<tr class="dataRow ${r.status==='Rejected'?'warn':''}"><td><a class="view-link" onclick="viewReq('${r.no}')">View</a>${r.status==='Draft'||r.status==='Rejected'?`, <a class="view-link" onclick="openForm('${r.no}')">Edit</a>`:''}${r.status==='Submitted'?`, <a class="view-link" onclick="viewReq('${r.no}')">MCD Review</a>`:''}</td>
+    <td class="mono"><b>${r.no}</b></td><td>${fmtDate(r.date)}</td><td>${unitPill(r.company)}</td><td>${r.yd?'<span class="pill BOTH">YD</span>':'<span class="pill ADD">Grey</span>'}</td><td>${esc(r.floor)}</td><td class="mono">${r.bookings.join(', ')}</td><td>${esc(bookingBuyer(r))}</td><td class="num">${r.lines.length}</td><td class="num"><b>${fmt(reqQty(r))}</b></td><td class="num">${fmt0(reqCone(r))}</td><td>${reqStatusPill(r.status)}</td><td>${esc(r.createdBy)}</td><td>${r.submittedOn?fmtDate(r.submittedOn):'<span class="muted">—</span>'}</td><td>${r.status==='Rejected'?'<span class="muted">'+esc(r.approvedBy)+'</span>':r.status==='Submitted'?'<span class="muted">waiting</span>':''}</td></tr>`).join('')
+    ||'<tr><td colspan="15" class="muted" style="text-align:center;padding:16px">No requisition in this list</td></tr>';
+}
+function renderApproved(){
+  const rows=REQS.filter(r=>r.status==='Approved').sort((a,b)=>b.approvedOn.localeCompare(a.approvedOn));
+  const slice=pager('approved',rows);
+  $('tb-approved').innerHTML=slice.map(r=>{const q=reqQty(r),i=issuedAgainst(r.no),p=q?Math.min(100,Math.round(i/q*100)):0;return `<tr class="dataRow"><td><a class="view-link" onclick="viewReq('${r.no}')">View</a>${i<q-0.001?`, <a class="view-link" href="${PAGES.txn.file}?new=1&mode=${r.yd?'TM-002':'TM-001'}&ref=${r.no}">Issue yarn</a>`:`, <a class="view-link" onclick="ackReq('${r.no}')">Acknowledge</a>`}</td>
+    <td class="mono"><b>${r.no}</b></td><td>${fmtDate(r.date)}</td><td>${unitPill(r.company)}</td><td>${r.yd?'<span class="pill BOTH">YD</span>':'<span class="pill ADD">Grey</span>'}</td><td>${esc(r.floor)}</td><td class="mono">${r.bookings.join(', ')}</td><td>${esc(bookingBuyer(r))}</td><td class="num">${fmt(q)}</td><td class="num">${fmt(i)}</td><td class="num"><b>${fmt(Math.max(0,q-i))}</b></td>
+    <td><div style="width:120px;height:10px;background:var(--gray-2);border-radius:3px;overflow:hidden"><i style="display:block;height:100%;width:${p}%;background:${p>=100?'var(--erp-green)':'var(--blue)'}"></i></div><span class="muted" style="font-size:10.5px">${p}% issued</span></td><td>${esc(r.approvedBy)}</td><td>${fmtDate(r.approvedOn)}</td></tr>`}).join('')
+    ||'<tr><td colspan="14" class="muted" style="text-align:center;padding:16px">Nothing approved yet</td></tr>';
+}
+function renderAck(){
+  const rows=toAck().concat(REQS.filter(r=>r.status==='Acknowledged')).sort((a,b)=>b.no.localeCompare(a.no));
+  const slice=pager('ack',rows);
+  $('tb-ack').innerHTML=slice.map(r=>{const docs=TXNS.filter(t=>t.status==='Approved'&&t.refNo===r.no);return `<tr class="dataRow"><td><a class="view-link" onclick="viewReq('${r.no}')">View</a>${r.status==='Approved'?`, <a class="view-link" onclick="ackReq('${r.no}')">Acknowledge</a>`:''}</td>
+    <td class="mono"><b>${r.no}</b></td><td>${fmtDate(r.date)}</td><td>${unitPill(r.company)}</td><td>${esc(r.floor)}</td><td class="mono">${r.bookings.join(', ')}</td><td class="num">${fmt(reqQty(r))}</td><td class="num">${fmt(issuedAgainst(r.no))}</td><td>${docs.map(t=>`<a class="view-link" onclick="viewTxn('${t.no}')">${t.no}</a>`).join(', ')||'<span class="muted">issued before go-live</span>'}</td><td>${r.status==='Approved'?'<span class="pill pending">Issued · awaiting ack.</span>':reqStatusPill(r.status)}</td><td>${esc(r.ackBy||'')}</td><td>${r.ackOn?fmtDate(r.ackOn):''}</td></tr>`}).join('')
+    ||'<tr><td colspan="12" class="muted" style="text-align:center;padding:16px">Nothing to acknowledge</td></tr>';
+}
+['c-q','c-buyer','c-dyed','c-noalloc'].forEach(id=>$(id).addEventListener('input',()=>{PG.items.page=1;renderItems()}));
+['r-q','r-status','r-unit'].forEach(id=>$(id).addEventListener('input',()=>{PG.list.page=1;renderReqList()}));
+pagerBind('items',renderItems);pagerBind('list',renderReqList);pagerBind('approved',renderApproved);pagerBind('ack',renderAck);
+const selected=()=>[...document.querySelectorAll('.rowchk:checked')];
+function selChange(){const n=selected().length;$('selCount').textContent=n;$('btn-create').disabled=!n}
+function toggleAll(c){document.querySelectorAll('.rowchk:not(:disabled)').forEach(x=>x.checked=c.checked);selChange()}
+function createFromSel(){const s=selected();if(!s.length)return;
+  const kinds=new Set(s.map(c=>c.dataset.dyed));
+  if(kinds.size>1){toast('Grey yarn and YD yarn cannot be mixed — they are kept in different stores. Create two requisitions.','error');return}
+  openForm();s.forEach(c=>{const [b,y]=c.value.split('|');addItem(b,y)});renderForm()}
+function ackReq(no){const r=REQS.find(x=>x.no===no);if(!r||r.status!=='Approved')return;const i=issuedAgainst(no),q=reqQty(r);
+  if(i<=0){toast('Nothing has been issued against '+no+' yet — the store must post the issue first','error');return}
+  if(!confirm('Acknowledge receipt of '+fmt(i)+' kg against '+no+'?'+(i<q-0.001?'\nOnly '+fmt(i)+' of '+fmt(q)+' kg was issued; the balance '+fmt(q-i)+' kg will be cancelled and the requisition closed.':'')))return;
+  r.status='Acknowledged';r.ackBy=USER.name;r.ackOn=TODAY;const d=REFDOCS.find(x=>x.no===no);if(d)d.status='Closed';saveDB();toast(no+' acknowledged and closed','success');closeModal('modal-view');refresh();setTab('ack')}
+
+/* ---- view / MCD review modal ---- */
+function viewReq(no){
+  const r=REQS.find(x=>x.no===no);if(!r)return;const q=reqQty(r),i=issuedAgainst(no);
+  $('vm-title').innerHTML=`${r.no} &nbsp; ${reqStatusPill(r.status)} &nbsp; ${ydTag(r.yd)}`;
+  $('vm-body').innerHTML=`<div class="kvGrid">
+      <div class="k">Requisition Date</div><div>${fmtDate(r.date)}</div><div class="k">Company</div><div>${unitPill(r.company)} · ${esc(r.floor)}</div>
+      <div class="k">Booking(s)</div><div class="mono">${r.bookings.join(', ')}</div><div class="k">Buyer</div><div>${esc(bookingBuyer(r))}</div>
+      <div class="k">Raised by</div><div>${esc(r.createdBy)} · ${fmtDate(r.createdOn)}${r.submittedOn?' · submitted '+fmtDate(r.submittedOn):''}</div><div class="k">MCD</div><div>${r.approvedBy?esc(r.approvedBy)+' · '+fmtDate(r.approvedOn):'<span class="muted">—</span>'}</div>
+      <div class="k">Issued</div><div>${fmt(i)} of ${fmt(q)} kg${r.ackBy?' · acknowledged by '+esc(r.ackBy)+' '+fmtDate(r.ackOn):''}</div><div class="k">Remarks</div><div>${esc(r.remarks||'—')}</div></div>
+    <table class="list" style="margin-top:10px"><thead><tr><th>#</th><th>Booking</th><th>Technical Name</th><th>Yarn Description</th><th>Spinner</th><th>Physical Lot</th><th class="right">Allocated on lot</th><th class="right">Req Qty (Kg)</th><th class="right">Cone</th><th class="right">Issued</th><th>Remarks</th></tr></thead><tbody>
+    ${r.lines.map((l,k)=>{const b=booking(l.booking)||{};const L=LOTS.find(x=>x.lot===l.lot);const a=L?allocsOf(l.booking,l.yarnCode).find(x=>x.lotId===L.id):null;return `<tr><td>${k+1}</td><td class="mono">${l.booking}</td><td>${esc(b.tech||'')}</td><td class="yarn-name">${esc(yarn(l.yarnCode).desc)}</td><td>${esc(l.spinner||'—')}</td><td class="mono">${esc(l.lot||'—')}</td><td class="num">${a?fmt(a.qty):'—'}</td><td class="num"><b>${fmt(l.qty)}</b></td><td class="num">${fmt0(l.cone)}</td><td class="num">${L?fmt(issuedFor(l.booking,l.yarnCode,L.id)):fmt(issuedAgainst(no,l.yarnCode))}</td><td class="muted">${esc(l.remarks||'')}</td></tr>`}).join('')}
+    </tbody><tfoot><tr><td colspan="7" class="right"><b>Total</b></td><td class="num"><b>${fmt(q)}</b></td><td class="num">${fmt0(reqCone(r))}</td><td class="num">${fmt(i)}</td><td></td></tr></tfoot></table>`;
+  let f=`<button class="btn ghost" onclick="closeModal('modal-view')">Close</button>`;
+  if(r.status==='Submitted')f+=`<span class="muted" style="font-size:11.5px">Acting as <b>${esc(MCD.name)}</b> · ${esc(MCD.role)}</span><button class="btn danger" onclick="mcdDecide('${no}',false)">&#10007; Reject</button><button class="btn primary" onclick="mcdDecide('${no}',true)">&#10003; MCD Approve</button>`;
+  if(r.status==='Draft'||r.status==='Rejected')f+=`<button class="btn warn" onclick="closeModal('modal-view');openForm('${no}')">&#9998; Edit</button>`;
+  if(r.status==='Approved'&&i<q-0.001)f+=`<a class="btn primary" href="${PAGES.txn.file}?new=1&mode=${r.yd?'TM-002':'TM-001'}&ref=${no}">&#8646; Issue yarn (Daily Transaction)</a>`;
+  if(r.status==='Approved'&&i>=q-0.001&&q>0)f+=`<button class="btn primary" onclick="ackReq('${no}')">&#9745; Acknowledge receipt</button>`;
+  $('vm-footer').innerHTML=f;showModal('modal-view');
+}
+function mcdDecide(no,ok){const r=REQS.find(x=>x.no===no);if(!r||r.status!=='Submitted')return;
+  if(ok){r.status='Approved';r.approvedBy=MCD.name;r.approvedOn=TODAY;publishRefDoc(r);saveDB();closeModal('modal-view');toast(no+' approved by MCD — now open for issue in Daily Transaction','success');refresh();setTab('approved')}
+  else{const why=prompt('Reason for rejection:');if(why===null)return;r.status='Rejected';r.approvedBy=MCD.name;r.approvedOn=TODAY;r.remarks=(r.remarks?r.remarks+' · ':'')+'Rejected by MCD: '+why;saveDB();closeModal('modal-view');toast(no+' rejected — floor may edit and resubmit','warn');refresh()}}
+
+/* ================= FORM ================= */
+$('r-company').innerHTML=opts(UNITS,'EFL');$('r-floor').innerHTML=opts(FLOOR_LIST,'EFL');
+function blank(){return {no:'',date:TODAY,company:'EFL',yd:null,floor:'EFL',bookings:[],lines:[],status:'Draft',createdBy:USER.name,createdOn:TODAY,submittedOn:'',approvedBy:'',approvedOn:'',remarks:''}}
+function openForm(no){
+  R=no?REQS.find(r=>r.no===no):blank();if(!R)return;
+  if(no&&!['Draft','Rejected'].includes(R.status)){toast(no+' is '+R.status+' — it can no longer be edited','warn');R=null;return}
+  $('f-no').textContent=R.no||'';$('f-meta').textContent=no?'Raised '+fmtDate(R.createdOn)+' by '+R.createdBy+(R.status==='Rejected'?' · rejected, edit and resubmit':''):'';
+  $('r-no').value=R.no||'<<-- New -->>';$('r-date').value=R.date;$('r-company').value=R.company;$('r-floor').value=R.floor;$('r-remarks').value=R.remarks||'';
+  $('listView').classList.add('hidden');$('formView').classList.remove('hidden');window.scrollTo(0,0);renderForm();
+}
+function closeForm(){$('formView').classList.add('hidden');$('listView').classList.remove('hidden');R=null;refresh()}
+/* the store kind is decided by the yarn, never by hand */
+function setKind(){const yd=R.yd;$('r-yd').checked=!!yd;$('f-title').firstChild.textContent=(yd?'YD Yarn Requisition ':'Knitting Yarn Requisition ');
+  if(!R.no)$('r-no').value=yd===null?'<<-- New -->>':'<<-- New -->>  ('+(yd?'YD':'KR')+'-series)';
+  $('storeTag').innerHTML=yd===null?'<span class="muted">store decided by the first item</span>':ydTag(yd)}
+function companyChange(){R.company=$('r-company').value;renderForm()}
+const kindOf=(bno,yc)=>{const b=booking(bno);const y=b&&b.yarns.find(x=>x.yarnCode===yc);return y?!!y.dyed:false};
+/* allocated lots of a booking yarn that still have balance (allocation − requisitioned on that lot, excluding this document) */
+const lotAllocs=(bno,yc)=>allocsOf(bno,yc).map(a=>({a,L:lotById(a.lotId),pend:Math.max(0,a.qty-requisitionedOnLot(bno,lotById(a.lotId).lot,R.no,false))}));
+function addItem(bno,yc,lot){const b=booking(bno);if(!b)return;const y=b.yarns.find(x=>x.yarnCode===yc);if(!y)return;
+  const kind=!!y.dyed;if(R.lines.length&&R.yd!==kind){toast('This is a '+(R.yd?'YD':'Grey')+' requisition — '+(kind?'YD':'Grey')+' yarn goes on a separate one','error');return}
+  if(R.lines.some(l=>l.booking===bno&&l.yarnCode===yc&&(l.lot===(lot||'')||!lot&&!l.lot)))return;
+  if(!R.bookings.includes(bno))R.bookings.push(bno);
+  if(R.lines.length===0){R.yd=kind;$('r-floor').value=FLOOR_LIST.includes(b.floor)?b.floor:'EFL';$('r-company').value=FLOORS[b.floor]||'EFL';R.company=$('r-company').value}
+  const la=lotAllocs(bno,yc).filter(x=>x.pend>0.001);
+  let L=lot?LOTS.find(x=>x.lot===lot):null;if(!L&&la.length===1)L=la[0].L;
+  const pend=L?(la.find(x=>x.L.id===L.id)||{pend:0}).pend:la.reduce((a,x)=>a+x.pend,0);
+  R.lines.push({booking:bno,yarnCode:yc,lot:L?L.lot:'',spinner:L?L.spinner:'',qty:Math.round(pend*100)/100,cone:Math.ceil(pend/1.8),remarks:''});setKind();}
+function copyLine(i){const l=R.lines[i];R.lines.splice(i+1,0,{...l,lot:'',spinner:'',qty:0,cone:0,remarks:''});renderForm();toast('Row copied — choose another allocated lot and type its quantity','')}
+function removeBooking(no){R.bookings=R.bookings.filter(b=>b!==no);R.lines=R.lines.filter(l=>l.booking!==no);if(!R.lines.length)R.yd=null;renderForm()}
+function removeLine(i){R.lines.splice(i,1);const left=new Set(R.lines.map(l=>l.booking));R.bookings=R.bookings.filter(b=>left.has(b));if(!R.lines.length)R.yd=null;renderForm()}
+function addItemModal(){
+  const kindFixed=R.lines.length>0;
+  const rows=pendingLines().filter(x=>(!kindFixed||!!x.y.dyed===R.yd)&&!R.lines.some(l=>l.booking===x.b.no&&l.yarnCode===x.y.yarnCode&&!l.lot));
+  $('vm-title').innerHTML='Add Item — allocated booking yarn lines '+(kindFixed?ydTag(R.yd):'<span class="muted" style="font-size:12px;font-weight:400">(Grey or YD — the first item fixes the store)</span>');
+  $('vm-body').innerHTML=`<div class="toolbar" style="margin-bottom:8px"><input class="search" placeholder="🔍 Filter…" oninput="[...document.querySelectorAll('#ai-tbl tbody tr')].forEach(r=>r.style.display=r.innerText.toLowerCase().includes(this.value.toLowerCase())?'':'none')"></div>
+    <div class="tableScroll"><table class="list" id="ai-tbl"><thead><tr><th class="chk"></th><th>Booking No</th><th>Booking Date</th><th>Buyer</th><th>Technical Name</th><th>Color</th><th>Yarn Description</th><th>Yarn Dyed</th><th>Allocated lots</th><th class="right">Allocated Qty</th><th class="right">Balanced Qty</th></tr></thead><tbody>
+    ${rows.map(x=>`<tr><td class="chk"><input type="checkbox" class="ai-chk" value="${x.b.no}|${x.y.yarnCode}" data-dyed="${x.y.dyed?1:0}"></td><td class="mono"><b>${x.b.no}</b></td><td>${fmtDate(x.b.date)}</td><td>${esc(x.b.buyer)}</td><td>${esc(x.b.tech)}</td><td>${esc(x.b.color)}</td><td class="yarn-name">${esc(yarn(x.y.yarnCode).desc)}</td><td>${yn(x.y.dyed)}</td><td class="mono">${allocsOf(x.b.no,x.y.yarnCode).map(a=>lotById(a.lotId).lot).join(', ')}</td><td class="num">${fmt(x.f.alloc)}</td><td class="num"><b>${fmt(x.f.balanced)}</b></td></tr>`).join('')||'<tr><td colspan="11" class="muted" style="text-align:center;padding:14px">No allocated booking yarn line left for this store</td></tr>'}
+    </tbody></table></div><div class="lineTip">Tick one or more lines; each becomes an item row with its allocated lot and pending quantity pre-filled. Grey and YD cannot be mixed.</div>`;
+  $('vm-footer').innerHTML=`<button class="btn ghost" onclick="closeModal('modal-view')">Cancel</button><button class="btn primary" onclick="aiOk()">&#10003; Add selected</button>`;
+  showModal('modal-view');
+}
+function aiOk(){const s=[...document.querySelectorAll('.ai-chk:checked')];if(!s.length){closeModal('modal-view');return}
+  const kinds=new Set(s.map(c=>c.dataset.dyed));if(kinds.size>1){toast('Grey yarn and YD yarn cannot be mixed in one requisition','error');return}
+  s.forEach(c=>{const [b,y]=c.value.split('|');addItem(b,y)});closeModal('modal-view');renderForm()}
+function renderForm(){
+  const b=balances();setKind();
+  $('tb-fbookings').innerHTML=R.bookings.map(no=>{const bk=booking(no)||{};const kg=R.lines.filter(l=>l.booking===no).reduce((a,l)=>a+(l.qty||0),0);return `<tr><td><span class="lineDel" title="Remove booking" onclick="removeBooking('${no}')">&#128465;</span></td><td class="mono"><b>${no}</b></td><td>${fmtDate(bk.date||'')}</td><td>${esc(bk.buyer||'')}</td><td>${esc(bk.tech||'')}</td><td>${esc(bk.color||'')}</td><td class="right">${fmt(kg)}</td></tr>`}).join('')
+    ||'<tr><td colspan="7" class="muted" style="text-align:center;padding:10px">No booking yet — press Add Item</td></tr>';
+  $('tb-rows').innerHTML=R.lines.map((l,i)=>{const bk=booking(l.booking)||{},y=yarn(l.yarnCode);
+    const la=lotAllocs(l.booking,l.yarnCode);const spinners=[...new Set(la.filter(x=>x.pend>0.001||x.L.lot===l.lot).map(x=>x.L.spinner))];
+    const lots=la.filter(x=>(x.pend>0.001||x.L.lot===l.lot)&&(!l.spinner||x.L.spinner===l.spinner));
+    const cur=la.find(x=>x.L.lot===l.lot);const L=cur?cur.L:null;
+    const alloc=cur?cur.a.qty:la.reduce((a,x)=>a+x.a.qty,0),sub=cur?requisitionedOnLot(l.booking,l.lot,R.no,true):requisitioned(l.booking,l.yarnCode,R.no,true),pend=cur?cur.pend:la.reduce((a,x)=>a+x.pend,0);
+    const dup=R.lines.some((o,k)=>k!==i&&o.booking===l.booking&&o.yarnCode===l.yarnCode&&o.lot&&o.lot===l.lot);
+    const bad=!(l.qty>0)||l.qty>pend+0.001;
+    return `<tr><td class="cmd"><span class="cp" title="Copy row for another lot" onclick="copyLine(${i})">&#10697;</span><span class="del" title="Remove" onclick="removeLine(${i})">&#10005;</span></td><td class="mono">${l.booking}</td><td>${esc(bk.tech||'')}</td><td class="yarn-name">${esc(bk.composition||'')}</td><td class="yarn-name">${esc(y.desc)} <span class="muted">${esc(y.count)}</span></td>
+      <td><select class="sp" onchange="R.lines[${i}].spinner=this.value;R.lines[${i}].lot='';renderForm()"><option value="">— any —</option>${spinners.map(s=>`<option value="${esc(s)}" ${s===l.spinner?'selected':''}>${esc(s)}</option>`).join('')}</select></td>
+      <td><select class="lot ${dup||!l.lot?'bad':''}" onchange="lotPick(${i},this.value)"><option value="">— select allocated lot —</option>${lots.map(x=>`<option value="${esc(x.L.lot)}" ${x.L.lot===l.lot?'selected':''}>${esc(x.L.lot)} · ${fmt(x.pend)} kg</option>`).join('')}</select>${dup?'<span class="av" style="color:var(--red)">duplicate lot</span>':''}</td><td class="mono muted">${L?esc(L.count):'—'}</td>
+      <td class="right mono">${fmt(alloc)}</td><td class="right mono">${sub?fmt(sub):'<span class="muted">—</span>'}</td><td class="right mono">${fmt(pend)}</td>
+      <td class="right"><input type="number" class="q ${bad?'bad':''}" min="0" step="0.5" value="${l.qty||''}" oninput="qtyChange(${i},this)"></td><td class="right"><input type="number" class="q" min="0" step="1" value="${l.cone||''}" oninput="R.lines[${i}].cone=parseInt(this.value)||0;totals()"></td>
+      <td><input class="rm" value="${esc(l.remarks||'')}" oninput="R.lines[${i}].remarks=this.value"></td></tr>`}).join('')
+    ||'<tr><td colspan="14" class="muted" style="text-align:center;padding:12px">Items appear here once a booking yarn line is added</td></tr>';
+  totals();
+  $('audit').innerHTML=`<span>Raised by <b>${esc(R.createdBy)}</b></span><span>Status <b>${R.status}</b></span><span>Approver <b>${esc(MCD.name)} · ${esc(MCD.role)}</b></span>`;
+}
+function lotPick(i,lot){const l=R.lines[i];l.lot=lot;const L=LOTS.find(x=>x.lot===lot);l.spinner=L?L.spinner:l.spinner;
+  if(L){const p=pendOf(l);if(!(l.qty>0)||l.qty>p){l.qty=Math.round(p*100)/100;l.cone=Math.ceil(l.qty/1.8)}}renderForm()}
+const pendOf=l=>{const la=lotAllocs(l.booking,l.yarnCode);const cur=la.find(x=>x.L.lot===l.lot);return cur?cur.pend:la.reduce((a,x)=>a+x.pend,0)};
+function qtyChange(i,inp){const l=R.lines[i];l.qty=parseFloat(inp.value)||0;const pend=pendOf(l);inp.classList.toggle('bad',!(l.qty>0)||l.qty>pend+0.001);if(l.qty>pend+0.001)toast('Requisition Qty exceeds the '+fmt(pend)+' kg allocated and still open on '+(l.lot||'this yarn'),'error');
+  l.cone=Math.ceil(l.qty/1.8);const row=inp.closest('tr');row.querySelectorAll('input.q')[1].value=l.cone||'';totals()}
+function totals(){const la=l=>lotAllocs(l.booking,l.yarnCode);
+  $('t-alloc').innerHTML='<span class="mono">'+fmt(R.lines.reduce((a,l)=>{const c=la(l).find(x=>x.L.lot===l.lot);return a+(c?c.a.qty:0)},0))+'</span>';
+  $('t-sub').innerHTML='<span class="mono">'+fmt(R.lines.reduce((a,l)=>a+(l.lot?requisitionedOnLot(l.booking,l.lot,R.no,true):0),0))+'</span>';
+  $('t-pend').innerHTML='<span class="mono">'+fmt(R.lines.reduce((a,l)=>a+pendOf(l),0))+'</span>';$('t-qty').textContent=fmt(reqQty(R));$('t-cone').innerHTML='<span class="mono">'+fmt0(reqCone(R))+'</span>'}
+function collect(){R.date=$('r-date').value;R.company=$('r-company').value;R.floor=$('r-floor').value;R.remarks=$('r-remarks').value.trim()}
+function validateReq(){const e=[];if(!R.date)e.push('Requisition date is required');if(!R.lines.length)e.push('Add at least one item');
+  R.lines.forEach((l,i)=>{const tag='Row '+(i+1)+' ('+l.booking+' · '+yarn(l.yarnCode).count+')';const kind=kindOf(l.booking,l.yarnCode);if(kind!==!!R.yd)e.push(tag+': '+(kind?'YD':'Grey')+' yarn cannot be on a '+(R.yd?'YD':'Grey')+' requisition');
+    if(!l.lot){e.push(tag+': select the allocated Physical Lot');return}
+    if(R.lines.some((o,k)=>k!==i&&o.booking===l.booking&&o.yarnCode===l.yarnCode&&o.lot===l.lot))e.push(tag+': lot '+l.lot+' appears twice — merge the rows');
+    const pend=pendOf(l);if(!(l.qty>0))e.push(tag+': Requisition Qty must be greater than zero');else if(l.qty>pend+0.001)e.push(tag+': Requisition Qty '+fmt(l.qty)+' exceeds the '+fmt(pend)+' kg allocated and open on lot '+l.lot)});return e}
+function saveReq(submit){
+  collect();const eb=$('errBox');const err=submit?validateReq():(R.lines.length?[]:['Add at least one item before saving']);
+  if(err.length){eb.classList.remove('hidden');eb.innerHTML='<b>Cannot '+(submit?'submit':'save')+':</b><ul style="margin:4px 0 0 18px">'+err.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';toast(err[0],'error');return}
+  eb.classList.add('hidden');R.yd=!!R.yd;
+  if(!R.no){R.no=nextNo(R.yd?'YD':'KR');REQS.push(R)}
+  const r=R;
+  if(submit){r.status='Submitted';r.submittedOn=TODAY;saveDB();closeForm();setTab('list');showSuccess('Submitted to MCD',r.no,`${r.lines.length} item(s) · <b>${fmt(reqQty(r))}</b> kg · ${fmt0(reqCone(r))} cones for booking(s) ${r.bookings.join(', ')} from the ${r.yd?'YD':'Grey'} store.`,`<b>${esc(MCD.name)}</b> reviews it in the Requisition List (MCD Review). After approval it appears in the <b>Approved List</b> and the store can issue against it.`)}
+  else{r.status='Draft';saveDB();toast(r.no+' saved as draft','success');closeForm();setTab('list')}
+}
+
+/* ---- boot ---- */
+refresh();
+if(qs.get('tab'))setTab(qs.get('tab'));
+if(qs.get('view'))viewReq(qs.get('view'));
+if(qs.get('edit'))openForm(qs.get('edit'));
+else if(qs.get('new')){openForm();(qs.get('items')||'').split(',').filter(Boolean).forEach(v=>{const [b,y]=v.split('|');addItem(b,y)});renderForm()}
+</script>
+</body>
+</html>
